@@ -249,6 +249,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   bool _isPouring = false;
   final Map<int, GlobalKey> _bottleKeys = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
+  final Set<int> _completedBottles = {};
+  late AnimationController _completionAnimationController;
+  int? _animatingCompletionIndex;
 
   @override
   void initState() {
@@ -256,6 +259,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     _pourAnimationController = AnimationController(
       vsync: this,
       duration: const Duration(milliseconds: 800),
+    );
+    _completionAnimationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1000),
     );
     _initializeGame();
     // Initialize keys for all bottles (max 10 bottles)
@@ -267,6 +274,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _pourAnimationController.dispose();
+    _completionAnimationController.dispose();
     _audioPlayer.dispose();
     super.dispose();
   }
@@ -421,6 +429,19 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
         // Update UI to show the new state after pouring
         setState(() {});
+
+        // Check for newly completed bottles and animate them
+        for (int i = 0; i < bottles.length; i++) {
+          if (bottles[i].length == 5 && bottles[i].every((color) => color == bottles[i][0])) {
+            if (!_completedBottles.contains(i)) {
+              _completedBottles.add(i);
+              _animatingCompletionIndex = i;
+              _completionAnimationController.forward(from: 0.0).then((_) {
+                _animatingCompletionIndex = null;
+              });
+            }
+          }
+        }
 
         // Check if game is won after pouring
         // Game is won when exactly 5 bottles are FULL (each with 5 colors, all same color)
@@ -644,6 +665,9 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       _pourToIndex = null;
       _pourAnimationColor = null;
       _pourAnimationController.reset();
+      _completedBottles.clear();
+      _animatingCompletionIndex = null;
+      _completionAnimationController.reset();
       _initializeGame();
     });
   }
@@ -915,6 +939,52 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                           ),
                                         ),
                                       ),
+                                    ),
+                                  // Permanent completion indicator
+                                  if (_completedBottles.contains(index))
+                                    Positioned.fill(
+                                      child: Center(
+                                        child: Icon(
+                                          Icons.celebration,
+                                          color: Colors.white,
+                                          size: 40,
+                                        ),
+                                      ),
+                                    ),
+                                  // Completion animation overlay
+                                  if (_animatingCompletionIndex == index)
+                                    AnimatedBuilder(
+                                      animation: _completionAnimationController,
+                                      builder: (context, child) {
+                                        return Positioned.fill(
+                                          child: Container(
+                                            decoration: BoxDecoration(
+                                              borderRadius: BorderRadius.circular(14),
+                                              gradient: RadialGradient(
+                                                center: Alignment.center,
+                                                radius: _completionAnimationController.value * 2,
+                                                colors: [
+                                                  Colors.yellow.withOpacity(0.8 * (1 - _completionAnimationController.value)),
+                                                  Colors.transparent,
+                                                ],
+                                              ),
+                                            ),
+                                            child: Center(
+                                              child: Opacity(
+                                                opacity: _completionAnimationController.value,
+                                                child: Transform.scale(
+                                                  scale: _completionAnimationController.value,
+                                                  child: Icon(
+                                                    Icons.celebration,
+                                                    color: Colors.white,
+                                                    size: 50,
+                                                  ),
+                                                ),
+                                              ),
+                                            ),
+                                          ),
+                                        );
+                                      },
                                     ),
                                 ],
                               ),
