@@ -484,141 +484,152 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     return gameWon;
   }
 
-  void _showSuccessDialog() {
-    showDialog(
-      context: context,
-      barrierDismissible: false,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
-          ),
-          title: Column(
-            children: [
-              const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.celebration, color: Colors.amber, size: 60),
-                  SizedBox(width: 10),
-                ],
+ void _showSuccessDialog() {
+  showDialog(
+    context: context,
+    barrierDismissible: false,
+    builder: (BuildContext context) {
+      return AlertDialog(
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(20),
+        ),
+        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+
+        title: Column(
+          children: [
+            const Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(Icons.celebration, color: Colors.amber, size: 60),
+              ],
+            ),
+            const SizedBox(height: 10),
+            const Text(
+              'Congratulations!',
+              style: TextStyle(
+                fontSize: 26,
+                fontWeight: FontWeight.bold,
+                color: Colors.blue,
               ),
-              const SizedBox(height: 10),
-              const Text(
-                'Congratulations!',
-                style: TextStyle(
-                  fontSize: 28,
-                  fontWeight: FontWeight.bold,
-                  color: Colors.blue,
-                ),
-                textAlign: TextAlign.center,
+              textAlign: TextAlign.center,
+            ),
+          ],
+        ),
+
+        // ✅ ONE VALUE CARD ONLY
+        content: Container(
+          width: double.infinity,
+          padding: const EdgeInsets.all(16),
+          decoration: BoxDecoration(
+            color: Colors.white,
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: const Color(0xFFE5E7EB)),
+            boxShadow: [
+              BoxShadow(
+                color: Colors.black.withOpacity(0.06),
+                blurRadius: 10,
+                offset: const Offset(0, 6),
               ),
             ],
           ),
-          content: Column(
+          child: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
+              // Top success row
+              Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.check_circle, color: Colors.green.shade600, size: 34),
+                  const SizedBox(width: 10),
+                  Text(
+                    'Level ${widget.level} Completed',
+                    style: const TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.w800,
+                      color: Color(0xFF111827),
+                    ),
+                  ),
+                ],
+              ),
+
+              const SizedBox(height: 12),
+
+              // Small highlight badge
               Container(
-                padding: const EdgeInsets.all(16),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
                 decoration: BoxDecoration(
                   color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(12),
-                  border: Border.all(
-                    color: Colors.green.shade300,
-                    width: 2,
-                  ),
+                  borderRadius: BorderRadius.circular(10),
+                  border: Border.all(color: Colors.green.shade200),
                 ),
-                child: Column(
-                  children: [
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Icon(Icons.check_circle, color: Colors.green.shade600, size: 40),
-                        const SizedBox(width: 10),
-                        const Text(
-                          'All 5 Glasses Full!',
-                          style: TextStyle(
-                            fontSize: 24,
-                            fontWeight: FontWeight.bold,
-                            color: Colors.green,
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    const Text(
-                      'Each glass has 5 matching colors!',
-                      style: TextStyle(
-                        fontSize: 16,
-                        fontWeight: FontWeight.w600,
-                        color: Colors.green,
-                      ),
-                      textAlign: TextAlign.center,
-                    ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 10),
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.blue.shade50,
-                  borderRadius: BorderRadius.circular(8),
-                ),
-                child: const Text(
-                  'Each glass has 5 matching colors!',
+                child: Text(
+                  'All 5 Glasses Full! 🎉',
                   style: TextStyle(
                     fontSize: 14,
-                    fontWeight: FontWeight.w500,
-                    color: Colors.blue,
+                    fontWeight: FontWeight.w700,
+                    color: Colors.green.shade800,
                   ),
                   textAlign: TextAlign.center,
                 ),
               ),
-              const SizedBox(height: 15),
-              Text(
-                'You completed Level ${widget.level}!',
-                textAlign: TextAlign.center,
-                style: const TextStyle(
-                  fontSize: 18,
-                  fontWeight: FontWeight.w600,
-                ),
-              ),
+
               const SizedBox(height: 10),
+
+              // Your existing rule/message but inside same card
               Text(
-                'Perfect sorting! 🎉🎊',
-                textAlign: TextAlign.center,
+                'Each glass has 5 matching colors!',
                 style: TextStyle(
-                  fontSize: 16,
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                  color: Colors.blue.shade700,
+                ),
+                textAlign: TextAlign.center,
+              ),
+
+              const SizedBox(height: 12),
+
+              Text(
+                'Perfect sorting! 🎊',
+                style: TextStyle(
+                  fontSize: 14,
                   color: Colors.grey.shade700,
                   fontStyle: FontStyle.italic,
+                  fontWeight: FontWeight.w600,
                 ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                _restartGame();
-              },
-              child: const Text('Restart Game'),
+        ),
+
+        actions: [
+          TextButton(
+            onPressed: () {
+              Navigator.pop(context);
+              _restartGame();
+            },
+            child: const Text('Restart Game'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.pop(context);
+              Navigator.pop(context);
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
             ),
-            ElevatedButton(
-              onPressed: () {
-                Navigator.pop(context); // Close dialog
-                Navigator.pop(context); // Go back to home
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
-              ),
-              child: const Text('Home'),
-            ),
-          ],
-        );
-      },
-    );
-  }
+            child: const Text('Home'),
+          ),
+        ],
+      );
+    },
+  );
+}
+
 
   void _restartGame() {
     setState(() {
