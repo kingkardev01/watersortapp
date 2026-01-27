@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
   runApp(const WaterSortApp());
@@ -93,7 +94,7 @@ class _SplashScreenState extends State<SplashScreen> {
               ),
               const SizedBox(height: 5),
               const Text(
-                'Sort liquid colors into cups',
+                'Sort liquid colors into bottles',
                 style: TextStyle(
                   fontSize: 16,
                   color: Colors.white60,
@@ -144,7 +145,7 @@ class HomeScreen extends StatelessWidget {
               padding: const EdgeInsets.all(20.0),
               child: Column(
                 children: [
-            const Text(
+                  const Text(
                     'Select a Level',
                     style: TextStyle(
                       fontSize: 26,
@@ -192,7 +193,7 @@ class HomeScreen extends StatelessWidget {
                           BoxShadow(
                             color: Colors.blue.shade200,
                             blurRadius: 8,
-                            offset: const Offset(0, 4),
+                            offset: const Offset(0, 2),
                           ),
                         ],
                       ),
@@ -205,7 +206,7 @@ class HomeScreen extends StatelessWidget {
                             color: Colors.blue.shade600,
                           ),
                           const SizedBox(height: 10),
-            Text(
+                          Text(
                             'Level ${index + 1}',
                             style: TextStyle(
                               fontSize: 16,
@@ -247,6 +248,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   Color? _pourAnimationColor;
   bool _isPouring = false;
   final Map<int, GlobalKey> _bottleKeys = {};
+  final AudioPlayer _audioPlayer = AudioPlayer();
 
   @override
   void initState() {
@@ -265,6 +267,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   void dispose() {
     _pourAnimationController.dispose();
+    _audioPlayer.dispose();
     super.dispose();
   }
 
@@ -288,7 +291,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       Colors.amber.shade600,
     ];
 
-    // Always use 5 colors with 5 empty glasses (10 total glasses)
+    // Always use 5 colors with 5 empty bottles (10 total bottles)
     int numColors = 5;
     List<Color> gameColors = colors.sublist(0, numColors);
     List<List<Color>> gameBottles = [];
@@ -309,10 +312,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     for (int j = 0; j < numColors; j++) {
       allColors.addAll(gameBottles[j]);
     }
-    
+
     // Shuffle all colors
     allColors.shuffle(random);
-    
+
     // Redistribute into bottles (5 colors each)
     for (int j = 0; j < numColors; j++) {
       gameBottles[j] = allColors.sublist(j * 5, (j + 1) * 5);
@@ -385,15 +388,18 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         _pourFromIndex = fromIndex;
         _pourToIndex = toIndex;
         _pourAnimationColor = topColor;
-        
+
         setState(() {
           _isPouring = true;
           selectedBottleIndex = null;
         });
-        
+
+        // Play pour sound
+        _audioPlayer.play(AssetSource('audio/water_sound.mp3'));
+
         // Start animation
         await _pourAnimationController.forward(from: 0.0);
-        
+
         // Perform the pour after animation
         // Only pour consecutive top colors (same color from top)
         // Remove from top of source (last elements) and add to top of destination
@@ -403,26 +409,26 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
           // Add to top of destination (append to end = top)
           toBottle.add(waterColor);
         }
-        
+
         await _pourAnimationController.reverse();
-        
+
         setState(() {
           _isPouring = false;
           _pourFromIndex = null;
           _pourToIndex = null;
           _pourAnimationColor = null;
         });
-        
+
         // Update UI to show the new state after pouring
         setState(() {});
-        
+
         // Check if game is won after pouring
-        // Game is won when exactly 5 glasses are FULL (each with 5 colors, all same color)
-        // This happens when player successfully sorts all colors into 5 separate glasses
+        // Game is won when exactly 5 bottles are FULL (each with 5 colors, all same color)
+        // This happens when player successfully sorts all colors into 5 separate bottles
         bool gameWon = _isGameWon();
-        
+
         if (gameWon) {
-          print('✅ Win condition met: 5 glasses are full with matching colors');
+          print('✅ Win condition met: 5 bottles are full with matching colors');
           // Small delay to ensure UI is updated before showing congratulations popup
           Future.delayed(const Duration(milliseconds: 600), () {
             if (mounted) {
@@ -444,192 +450,191 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
   bool _isGameWon() {
     int completedBottles = 0;
-    
-    // Check each glass in the game
+
+    // Check each bottle in the game
     for (var bottle in bottles) {
-      // Skip empty glasses - they don't count
+      // Skip empty bottles - they don't count
       if (bottle.isEmpty) continue;
-      
-      // Glass must be FULL (exactly 5 colors) - no more, no less
+
+      // Bottle must be FULL (exactly 5 colors) - no more, no less
       if (bottle.length == 5) {
         // Get the first color to compare with others
         Color firstColor = bottle[0];
         bool allSameColor = true;
-        
-        // Check if all 5 colors in this glass are exactly the same
+
+        // Check if all 5 colors in this bottle are exactly the same
         for (var color in bottle) {
           if (color != firstColor) {
             allSameColor = false;
-            break; // Found different color, this glass is not complete
+            break; // Found different color, this bottle is not complete
           }
         }
-        
-        // If all 5 colors match perfectly, this glass is complete
+
+        // If all 5 colors match perfectly, this bottle is complete
         if (allSameColor) {
           completedBottles++;
         }
       }
     }
-    
-    // Game is won when EXACTLY 5 glasses are FULL with matching colors
-    // Each of the 5 glasses must have exactly 5 colors, all the same color
-    // We need exactly 5 completed glasses (one for each color: red, blue, green, yellow, orange)
+
+    // Game is won when EXACTLY 5 bottles are FULL with matching colors
+    // Each of the 5 bottles must have exactly 5 colors, all the same color
+    // We need exactly 5 completed bottles (one for each color: red, blue, green, yellow, orange)
     bool gameWon = (completedBottles == 5);
-    
+
     // Debug: Print win status (can be removed in production)
     if (gameWon) {
-      print('🎉 Game Won! 5 glasses are full with matching colors!');
+      print('🎉 Game Won! 5 bottles are full with matching colors!');
     }
-    
+
     return gameWon;
   }
 
- void _showSuccessDialog() {
-  showDialog(
-    context: context,
-    barrierDismissible: false,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(20),
-        ),
-        titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
-        contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
-        actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
+  void _showSuccessDialog() {
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (BuildContext context) {
+        return AlertDialog(
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          titlePadding: const EdgeInsets.fromLTRB(24, 24, 24, 0),
+          contentPadding: const EdgeInsets.fromLTRB(24, 16, 24, 0),
+          actionsPadding: const EdgeInsets.fromLTRB(16, 0, 16, 12),
 
-        title: Column(
-          children: [
-            const Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              children: [
-                Icon(Icons.celebration, color: Colors.amber, size: 60),
-              ],
-            ),
-            const SizedBox(height: 10),
-            const Text(
-              'Congratulations!',
-              style: TextStyle(
-                fontSize: 26,
-                fontWeight: FontWeight.bold,
-                color: Colors.blue,
+          title: Column(
+            children: [
+              const Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                children: [
+                  Icon(Icons.celebration, color: Colors.amber, size: 60),
+                ],
               ),
-              textAlign: TextAlign.center,
-            ),
-          ],
-        ),
-
-        // ✅ ONE VALUE CARD ONLY
-        content: Container(
-          width: double.infinity,
-          padding: const EdgeInsets.all(16),
-          decoration: BoxDecoration(
-            color: Colors.white,
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: const Color(0xFFE5E7EB)),
-            boxShadow: [
-              BoxShadow(
-                color: Colors.black.withOpacity(0.06),
-                blurRadius: 10,
-                offset: const Offset(0, 6),
+              const SizedBox(height: 10),
+              const Text(
+                'Congratulations!',
+                style: TextStyle(
+                  fontSize: 26,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue,
+                ),
+                textAlign: TextAlign.center,
               ),
             ],
           ),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              // Top success row
-              Row(
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Icon(Icons.check_circle, color: Colors.green.shade600, size: 34),
-                  const SizedBox(width: 10),
-                  Text(
-                    'Level ${widget.level} Completed',
-                    style: const TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.w800,
-                      color: Color(0xFF111827),
-                    ),
-                  ),
-                ],
-              ),
 
-              const SizedBox(height: 12),
-
-              // Small highlight badge
-              Container(
-                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-                decoration: BoxDecoration(
-                  color: Colors.green.shade50,
-                  borderRadius: BorderRadius.circular(10),
-                  border: Border.all(color: Colors.green.shade200),
+          // ✅ ONE VALUE CARD ONLY
+          content: Container(
+            width: double.infinity,
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: Colors.white,
+              borderRadius: BorderRadius.circular(14),
+              border: Border.all(color: const Color(0xFFE5E7EB)),
+              boxShadow: [
+                BoxShadow(
+                  color: Colors.black.withOpacity(0.06),
+                  blurRadius: 10,
+                  offset: const Offset(0, 6),
                 ),
-                child: Text(
-                  'All 5 Glasses Full! 🎉',
+              ],
+            ),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                // Top success row
+                Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.check_circle, color: Colors.green.shade600, size: 34),
+                    const SizedBox(width: 10),
+                    Text(
+                      'Level ${widget.level} Completed',
+                      style: const TextStyle(
+                        fontSize: 18,
+                        fontWeight: FontWeight.w800,
+                        color: Color(0xFF111827),
+                      ),
+                    ),
+                  ],
+                ),
+
+                const SizedBox(height: 12),
+
+                // Small highlight badge
+                Container(
+                  padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+                  decoration: BoxDecoration(
+                    color: Colors.green.shade50,
+                    borderRadius: BorderRadius.circular(10),
+                    border: Border.all(color: Colors.green.shade200),
+                  ),
+                  child: Text(
+                    'All 5 Bottles Full! 🎉',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w700,
+                      color: Colors.green.shade800,
+                    ),
+                    textAlign: TextAlign.center,
+                  ),
+                ),
+
+                const SizedBox(height: 10),
+
+                // Your existing rule/message but inside same card
+                Text(
+                  'Each bottle has 5 matching colors!',
                   style: TextStyle(
-                    fontSize: 14,
-                    fontWeight: FontWeight.w700,
-                    color: Colors.green.shade800,
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                    color: Colors.blue.shade700,
                   ),
                   textAlign: TextAlign.center,
                 ),
-              ),
 
-              const SizedBox(height: 10),
+                const SizedBox(height: 12),
 
-              // Your existing rule/message but inside same card
-              Text(
-                'Each glass has 5 matching colors!',
-                style: TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                  color: Colors.blue.shade700,
+                Text(
+                  'Perfect sorting! 🎊',
+                  style: TextStyle(
+                    fontSize: 14,
+                    color: Colors.grey.shade700,
+                    fontStyle: FontStyle.italic,
+                    fontWeight: FontWeight.w600,
+                  ),
+                  textAlign: TextAlign.center,
                 ),
-                textAlign: TextAlign.center,
-              ),
-
-              const SizedBox(height: 12),
-
-              Text(
-                'Perfect sorting! 🎊',
-                style: TextStyle(
-                  fontSize: 14,
-                  color: Colors.grey.shade700,
-                  fontStyle: FontStyle.italic,
-                  fontWeight: FontWeight.w600,
-                ),
-                textAlign: TextAlign.center,
-              ),
-            ],
-          ),
-        ),
-
-        actions: [
-          TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              _restartGame();
-            },
-            child: const Text('Restart Game'),
-          ),
-          ElevatedButton(
-            onPressed: () {
-              Navigator.pop(context);
-              Navigator.pop(context);
-            },
-            style: ElevatedButton.styleFrom(
-              backgroundColor: Colors.blue.shade600,
-              foregroundColor: Colors.white,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ],
             ),
-            child: const Text('Home'),
           ),
-        ],
-      );
-    },
-  );
-}
 
+          actions: [
+            TextButton(
+              onPressed: () {
+                Navigator.pop(context);
+                _restartGame();
+              },
+              child: const Text('Restart Game'),
+            ),
+            ElevatedButton(
+              onPressed: () {
+                Navigator.pop(context);
+                Navigator.pop(context);
+              },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
+              ),
+              child: const Text('Home'),
+            ),
+          ],
+        );
+      },
+    );
+  }
 
   void _restartGame() {
     setState(() {
@@ -681,7 +686,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 child: Column(
                   children: [
                     Text(
-                      'Sort liquid colors into cups',
+                      'Sort liquid colors into bottles',
                       style: TextStyle(
                         fontSize: 18,
                         fontWeight: FontWeight.bold,
@@ -691,7 +696,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      'Tap a cup to select, then tap another to pour',
+                      'Tap a bottle to select, then tap another to pour',
                       style: TextStyle(
                         fontSize: 14,
                         color: Colors.grey.shade600,
@@ -705,6 +710,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         child: Row(
                           mainAxisAlignment: MainAxisAlignment.center,
                           children: [
+                            
                             Container(
                               width: 24,
                               height: 24,
@@ -735,6 +741,10 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                           ],
                         ),
                       ),
+                      if(selectedBottleIndex ==null)
+                      Container(
+                         padding: const EdgeInsets.only(top: 12.0),
+                        height: 33,color: Colors.transparent,)
                   ],
                 ),
               ),
@@ -759,16 +769,12 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                               color: Colors.white,
                               borderRadius: BorderRadius.circular(18),
                               border: Border.all(
-                                color: selectedBottleIndex == index
-                                    ? Colors.blue.shade600
-                                    : Colors.grey.shade300,
+                                color: selectedBottleIndex == index ? Colors.blue.shade600 : Colors.grey.shade300,
                                 width: selectedBottleIndex == index ? 4 : 2,
                               ),
                               boxShadow: [
                                 BoxShadow(
-                                  color: selectedBottleIndex == index
-                                      ? Colors.blue.shade300.withOpacity(0.6)
-                                      : Colors.grey.shade300.withOpacity(0.4),
+                                  color: selectedBottleIndex == index ? Colors.blue.shade300.withOpacity(0.6) : Colors.grey.shade300.withOpacity(0.4),
                                   blurRadius: selectedBottleIndex == index ? 12 : 8,
                                   offset: const Offset(0, 4),
                                   spreadRadius: selectedBottleIndex == index ? 2 : 0,
@@ -799,69 +805,65 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                           ),
                                         ),
                                       ),
-                                  // Cup body
-                                  Expanded(
-                                    child: Container(
-                                      width: double.infinity,
-                                      decoration: BoxDecoration(
-                                        color: Colors.white,
-                                        border: Border(
-                                          left: BorderSide(
-                                            color: Colors.grey.shade300,
-                                            width: 2.5,
+                                      // Cup body
+                                      Expanded(
+                                        child: Container(
+                                          width: double.infinity,
+                                          decoration: BoxDecoration(
+                                            color: Colors.white,
+                                            border: Border(
+                                              left: BorderSide(
+                                                color: Colors.grey.shade300,
+                                                width: 2.5,
+                                              ),
+                                              right: BorderSide(
+                                                color: Colors.grey.shade300,
+                                                width: 2.5,
+                                              ),
+                                            ),
                                           ),
-                                          right: BorderSide(
-                                            color: Colors.grey.shade300,
-                                            width: 2.5,
-                                          ),
-                                        ),
-                                      ),
-                                      child: bottles[index].isEmpty
-                                          ? Container()
-                                          : Column(
-                                              mainAxisAlignment:
-                                                  MainAxisAlignment.end,
-                                              children: [
-                                                // Water layers - bottom to top (last element = top color shown at top)
-                                                // bottles[index][0] is bottom, bottles[index][last] is top
-                                                for (int i = 0;
-                                                    i < bottles[index].length;
-                                                    i++)
-                                                  Expanded(
-                                                    flex: 1,
-                                                    child: Container(
-                                                      width: double.infinity,
-                                                      decoration: BoxDecoration(
-                                                        color: bottles[index][i],
-                                                        gradient: LinearGradient(
-                                                          begin: Alignment.topCenter,
-                                                          end: Alignment.bottomCenter,
-                                                          colors: [
-                                                            bottles[index][i].withOpacity(0.9),
-                                                            bottles[index][i],
-                                                          ],
-                                                        ),
-                                                        border: Border(
-                                                          top: BorderSide(
-                                                            color: Colors.white
-                                                                .withOpacity(0.4),
-                                                            width: 1.5,
+                                          child: bottles[index].isEmpty
+                                              ? Container()
+                                              : Column(
+                                                  mainAxisAlignment: MainAxisAlignment.end,
+                                                  children: [
+                                                    // Water layers - bottom to top (last element = top color shown at top)
+                                                    // bottles[index][0] is bottom, bottles[index][last] is top
+                                                    for (int i = 0; i < bottles[index].length; i++)
+                                                      Expanded(
+                                                        flex: 1,
+                                                        child: Container(
+                                                          width: double.infinity,
+                                                          decoration: BoxDecoration(
+                                                            color: bottles[index][i],
+                                                            gradient: LinearGradient(
+                                                              begin: Alignment.topCenter,
+                                                              end: Alignment.bottomCenter,
+                                                              colors: [
+                                                                bottles[index][i].withOpacity(0.9),
+                                                                bottles[index][i],
+                                                              ],
+                                                            ),
+                                                            border: Border(
+                                                              top: BorderSide(
+                                                                color: Colors.white.withOpacity(0.4),
+                                                                width: 1.5,
+                                                              ),
+                                                            ),
                                                           ),
                                                         ),
                                                       ),
+                                                    // Fill empty space at top (5 total slots)
+                                                    Expanded(
+                                                      flex: 5 - bottles[index].length,
+                                                      child: Container(
+                                                        color: Colors.white,
+                                                      ),
                                                     ),
-                                                  ),
-                                                // Fill empty space at top (5 total slots)
-                                                Expanded(
-                                                  flex: 5 - bottles[index].length,
-                                                  child: Container(
-                                                    color: Colors.white,
-                                                  ),
+                                                  ],
                                                 ),
-                                              ],
-                                            ),
-                                    ),
-                                  ),
+                                        ),
+                                      ),
                                       // Cup base
                                       Container(
                                         width: double.infinity,
@@ -882,7 +884,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                                       ),
                                     ],
                                   ),
-                                  // Show selected color indicator above the cup
+                                  // Show selected color indicator above the bottle
                                   if (selectedBottleIndex == index && bottles[index].isNotEmpty)
                                     Positioned(
                                       top: -35,
@@ -928,21 +930,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                         builder: (context, child) {
                           Offset? startPos;
                           Offset? endPos;
-                          
+
                           // Get positions from GlobalKeys
-                          if (_bottleKeys[_pourFromIndex]?.currentContext != null &&
-                              _bottleKeys[_pourToIndex]?.currentContext != null) {
-                            final RenderBox? fromBox = _bottleKeys[_pourFromIndex]!
-                                .currentContext!
-                                .findRenderObject() as RenderBox?;
-                            final RenderBox? toBox = _bottleKeys[_pourToIndex]!
-                                .currentContext!
-                                .findRenderObject() as RenderBox?;
-                            
+                          if (_bottleKeys[_pourFromIndex]?.currentContext != null && _bottleKeys[_pourToIndex]?.currentContext != null) {
+                            final RenderBox? fromBox = _bottleKeys[_pourFromIndex]!.currentContext!.findRenderObject() as RenderBox?;
+                            final RenderBox? toBox = _bottleKeys[_pourToIndex]!.currentContext!.findRenderObject() as RenderBox?;
+
                             if (fromBox != null && toBox != null) {
                               startPos = fromBox.localToGlobal(Offset.zero);
                               endPos = toBox.localToGlobal(Offset.zero);
-                              
+
                               // Adjust to center of bottles
                               startPos = Offset(
                                 startPos.dx + fromBox.size.width / 2,
@@ -954,20 +951,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                               );
                             }
                           }
-                          
+
                           if (startPos == null || endPos == null) {
                             return const SizedBox.shrink();
                           }
-                          
+
                           final curvedValue = Curves.easeInOut.transform(_pourAnimationController.value);
                           final position = Offset.lerp(startPos, endPos, curvedValue)!;
-                          
+
                           // Calculate hand position (slightly above the water drop)
                           final handPosition = Offset(
                             position.dx - 30,
                             position.dy - 50,
                           );
-                          
+
                           return Stack(
                             children: [
                               // Hand icon animation
