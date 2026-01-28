@@ -3,6 +3,240 @@ import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
 import 'package:flutter/material.dart';
 
+import 'dart:math';
+import 'package:audioplayers/audioplayers.dart';
+import 'package:flutter/material.dart';
+
+class TestTubeWidget extends StatelessWidget {
+  final int index;
+  final List<Color> bottle;
+  final int? selectedBottleIndex;
+  final GlobalKey? key;
+  final bool isCompleted;
+  final bool isAnimating;
+  final AnimationController completionAnimationController;
+
+  const TestTubeWidget({
+    required this.index,
+    required this.bottle,
+    required this.selectedBottleIndex,
+    this.key,
+    required this.isCompleted,
+    required this.isAnimating,
+    required this.completionAnimationController,
+  }) : super(key: key);
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 50, // Adjust the width for the test tube
+      height: 200, // Height of the test tube
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(12),
+        border: Border.all(
+          color: selectedBottleIndex == index ? Colors.blue.shade600 : Colors.grey.shade300,
+          width: selectedBottleIndex == index ? 4 : 2,
+        ),
+        boxShadow: [
+          BoxShadow(
+            color: selectedBottleIndex == index ? Colors.blue.shade300.withOpacity(0.6) : Colors.grey.shade300.withOpacity(0.4),
+            blurRadius: selectedBottleIndex == index ? 12 : 8,
+            offset: const Offset(0, 4),
+            spreadRadius: selectedBottleIndex == index ? 2 : 0,
+          ),
+        ],
+      ),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: Stack(
+          children: [
+            Column(
+              children: [
+                // Test tube neck/rim (top)
+                Container(
+                  width: double.infinity,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      topLeft: Radius.circular(12),
+                      topRight: Radius.circular(12),
+                    ),
+                    border: Border(
+                      bottom: BorderSide(
+                        color: Colors.grey.shade300,
+                        width: 2.5,
+                      ),
+                    ),
+                  ),
+                ),
+                // Test tube body (liquid part)
+                Expanded(
+                  child: Container(
+                    width: double.infinity,
+                    decoration: BoxDecoration(
+                      color: Colors.white,
+                    ),
+                    child: bottle.isEmpty
+                        ? Container()
+                        : Column(
+                            mainAxisAlignment: MainAxisAlignment.start,
+                            children: [
+                              // Fill empty space at the bottom of the test tube
+                              Expanded(
+                                flex: 5 - bottle.length,
+                                child: Container(
+                                  color: Colors.white,
+                                ),
+                              ),
+                              // Liquid layers from top to bottom
+                              for (int i = 0; i < bottle.length; i++)
+                                Expanded(
+                                  flex: 1,
+                                  child: Container(
+                                    width: double.infinity,
+                                    decoration: BoxDecoration(
+                                      color: bottle[i],
+                                      gradient: LinearGradient(
+                                        begin: Alignment.topCenter,
+                                        end: Alignment.bottomCenter,
+                                        colors: [
+                                          bottle[i].withOpacity(0.9),
+                                          bottle[i],
+                                        ],
+                                      ),
+                                      border: Border(
+                                        top: BorderSide(
+                                          color: Colors.white.withOpacity(0.4),
+                                          width: 1.0,
+                                        ),
+                                      ),
+                                    ),
+                                  ),
+                                ),
+                            ],
+                          ),
+                  ),
+                ),
+                // Test tube base (flat bottom)
+                Container(
+                  width: double.infinity,
+                  height: 10,
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: const BorderRadius.only(
+                      bottomLeft: Radius.circular(12),
+                      bottomRight: Radius.circular(12),
+                    ),
+                    border: Border(
+                      top: BorderSide(
+                        color: Colors.grey.shade300,
+                        width: 2.5,
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+            // Show selected color indicator above the test tube
+            if (selectedBottleIndex == index && bottle.isNotEmpty)
+              Positioned(
+                top: -35,
+                left: 0,
+                right: 0,
+                child: Center(
+                  child: Container(
+                    padding: const EdgeInsets.all(6),
+                    decoration: BoxDecoration(
+                      color: bottle.first, // Bottom color
+                      shape: BoxShape.circle,
+                      border: Border.all(
+                        color: Colors.white,
+                        width: 3,
+                      ),
+                      boxShadow: [
+                        BoxShadow(
+                          color: bottle.first.withOpacity(0.7),
+                          blurRadius: 10,
+                          spreadRadius: 2,
+                        ),
+                      ],
+                    ),
+                    child: Icon(
+                      Icons.arrow_downward,
+                      color: Colors.white,
+                      size: 20,
+                    ),
+                  ),
+                ),
+              ),
+            // Completion indicator animation
+            if (isAnimating)
+              AnimatedBuilder(
+                animation: completionAnimationController,
+                builder: (context, child) {
+                  return Positioned.fill(
+                    child: Container(
+                      decoration: BoxDecoration(
+                        borderRadius: BorderRadius.circular(12),
+                        gradient: RadialGradient(
+                          center: Alignment.center,
+                          radius: completionAnimationController.value * 2,
+                          colors: [
+                            Colors.yellow.withOpacity(0.8 * (1 - completionAnimationController.value)),
+                            Colors.transparent,
+                          ],
+                        ),
+                      ),
+                      child: Center(
+                        child: Opacity(
+                          opacity: completionAnimationController.value,
+                          child: Transform.scale(
+                            scale: completionAnimationController.value,
+                            child: Icon(
+                              Icons.celebration,
+                              color: Colors.white,
+                              size: 50,
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                  );
+                },
+              ),
+            // Permanent completion indicator
+            if (isCompleted)
+              Positioned.fill(
+                child: Container(
+                  decoration: BoxDecoration(
+                    borderRadius: BorderRadius.circular(12),
+                    gradient: RadialGradient(
+                      center: Alignment.center,
+                      radius: 0.8,
+                      colors: [
+                        Colors.yellow.withOpacity(0.4),
+                        Colors.transparent,
+                      ],
+                    ),
+                  ),
+                  child: Center(
+                    child: Icon(
+                      Icons.celebration,
+                      color: Colors.white,
+                      size: 50,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class GameScreen extends StatefulWidget {
   final int level;
 
@@ -26,6 +260,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   final Set<int> _completedBottles = {};
   late AnimationController _completionAnimationController;
   int? _animatingCompletionIndex;
+ 
+
 
   @override
   void initState() {
@@ -141,20 +377,20 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
     List<Color> fromBottle = bottles[fromIndex];
     List<Color> toBottle = bottles[toIndex];
 
-    // Get the top color from source bottle (last element = top)
-    // Only pour the top color, not bottom colors
-    Color topColor = fromBottle.last;
+    // Get the bottom color from source bottle (first element = bottom)
+    // Only pour the bottom color, not top colors
+    Color bottomColor = fromBottle.first;
 
     // Check if destination is empty or has same color on top
-    if (toBottle.isEmpty || toBottle.last == topColor) {
-      // Count how many consecutive same colors from TOP ONLY
-      // Start from the top (last element) and count down
+    if (toBottle.isEmpty || toBottle.last == bottomColor) {
+      // Count how many consecutive same colors from BOTTOM ONLY
+      // Start from the bottom (first element) and count up
       int sameColorCount = 0;
-      for (int i = fromBottle.length - 1; i >= 0; i--) {
-        if (fromBottle[i] == topColor) {
+      for (int i = 0; i < fromBottle.length; i++) {
+        if (fromBottle[i] == bottomColor) {
           sameColorCount++;
         } else {
-          // Stop if we hit a different color - only pour top colors
+          // Stop if we hit a different color - only pour bottom colors
           break;
         }
       }
@@ -165,11 +401,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         pourCount = 5 - toBottle.length;
       }
 
-      // Only pour if we have top colors to pour
+      // Only pour if we have bottom colors to pour
       if (pourCount > 0 && sameColorCount > 0) {
         _pourFromIndex = fromIndex;
         _pourToIndex = toIndex;
-        _pourAnimationColor = topColor;
+        _pourAnimationColor = bottomColor;
 
         setState(() {
           _isPouring = true;
@@ -183,11 +419,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         await _pourAnimationController.forward(from: 0.0);
 
         // Perform the pour after animation
-        // Only pour consecutive top colors (same color from top)
-        // Remove from top of source (last elements) and add to top of destination
+        // Only pour consecutive bottom colors (same color from bottom)
+        // Remove from bottom of source (first elements) and add to top of destination
         for (int i = 0; i < pourCount; i++) {
-          // Remove from top of source (last element = top color)
-          Color waterColor = fromBottle.removeLast();
+          // Remove from bottom of source (first element = bottom color)
+          Color waterColor = fromBottle.removeAt(0);
           // Add to top of destination (append to end = top)
           toBottle.add(waterColor);
         }
@@ -513,7 +749,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                               width: 24,
                               height: 24,
                               decoration: BoxDecoration(
-                                color: bottles[selectedBottleIndex!].last,
+                                color: bottles[selectedBottleIndex!].first,
                                 shape: BoxShape.circle,
                                 border: Border.all(
                                   color: Colors.white,
@@ -561,208 +797,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                       itemBuilder: (context, index) {
                         return GestureDetector(
                           onTap: () => _onBottleTap(index),
-                          child: Container(
+                          child: TestTubeWidget(
+                            index: index,
+                            bottle: bottles[index],
+                            selectedBottleIndex: selectedBottleIndex,
                             key: _bottleKeys[index],
-                            decoration: BoxDecoration(
-                              color: Colors.white,
-                              borderRadius: BorderRadius.circular(18),
-                              border: Border.all(
-                                color: selectedBottleIndex == index ? Colors.blue.shade600 : Colors.grey.shade300,
-                                width: selectedBottleIndex == index ? 4 : 2,
-                              ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: selectedBottleIndex == index ? Colors.blue.shade300.withOpacity(0.6) : Colors.grey.shade300.withOpacity(0.4),
-                                  blurRadius: selectedBottleIndex == index ? 12 : 8,
-                                  offset: const Offset(0, 4),
-                                  spreadRadius: selectedBottleIndex == index ? 2 : 0,
-                                ),
-                              ],
-                            ),
-                            child: ClipRRect(
-                              borderRadius: BorderRadius.circular(14),
-                              child: Stack(
-                                children: [
-                                  Column(
-                                    children: [
-                                      // Cup neck/rim
-                                      Container(
-                                        width: double.infinity,
-                                        height: 12,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: const BorderRadius.only(
-                                            topLeft: Radius.circular(18),
-                                            topRight: Radius.circular(18),
-                                          ),
-                                          border: Border(
-                                            bottom: BorderSide(
-                                              color: Colors.grey.shade300,
-                                              width: 2.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                      // Cup body
-                                      Expanded(
-                                        child: Container(
-                                          width: double.infinity,
-                                          decoration: BoxDecoration(
-                                            color: Colors.white,
-                                            border: Border(
-                                              left: BorderSide(
-                                                color: Colors.grey.shade300,
-                                                width: 2.5,
-                                              ),
-                                              right: BorderSide(
-                                                color: Colors.grey.shade300,
-                                                width: 2.5,
-                                              ),
-                                            ),
-                                          ),
-                                          child: bottles[index].isEmpty
-                                              ? Container()
-                                              : Column(
-                                                  mainAxisAlignment: MainAxisAlignment.end,
-                                                  children: [
-                                                    // Water layers - bottom to top (last element = top color shown at top)
-                                                    // bottles[index][0] is bottom, bottles[index][last] is top
-                                                    for (int i = 0; i < bottles[index].length; i++)
-                                                      Expanded(
-                                                        flex: 1,
-                                                        child: Container(
-                                                          width: double.infinity,
-                                                          decoration: BoxDecoration(
-                                                            color: bottles[index][i],
-                                                            gradient: LinearGradient(
-                                                              begin: Alignment.topCenter,
-                                                              end: Alignment.bottomCenter,
-                                                              colors: [
-                                                                bottles[index][i].withOpacity(0.9),
-                                                                bottles[index][i],
-                                                              ],
-                                                            ),
-                                                            border: Border(
-                                                              top: BorderSide(
-                                                                color: Colors.white.withOpacity(0.4),
-                                                                width: 1.5,
-                                                              ),
-                                                            ),
-                                                          ),
-                                                        ),
-                                                      ),
-                                                    // Fill empty space at top (5 total slots)
-                                                    Expanded(
-                                                      flex: 5 - bottles[index].length,
-                                                      child: Container(
-                                                        color: Colors.white,
-                                                      ),
-                                                    ),
-                                                  ],
-                                                ),
-                                        ),
-                                      ),
-                                      // Cup base
-                                      Container(
-                                        width: double.infinity,
-                                        height: 10,
-                                        decoration: BoxDecoration(
-                                          color: Colors.white,
-                                          borderRadius: const BorderRadius.only(
-                                            bottomLeft: Radius.circular(18),
-                                            bottomRight: Radius.circular(18),
-                                          ),
-                                          border: Border(
-                                            top: BorderSide(
-                                              color: Colors.grey.shade300,
-                                              width: 2.5,
-                                            ),
-                                          ),
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  // Show selected color indicator above the bottle
-                                  if (selectedBottleIndex == index && bottles[index].isNotEmpty)
-                                    Positioned(
-                                      top: -35,
-                                      left: 0,
-                                      right: 0,
-                                      child: Center(
-                                        child: Container(
-                                          padding: const EdgeInsets.all(6),
-                                          decoration: BoxDecoration(
-                                            color: bottles[index].last, // Top color
-                                            shape: BoxShape.circle,
-                                            border: Border.all(
-                                              color: Colors.white,
-                                              width: 3,
-                                            ),
-                                            boxShadow: [
-                                              BoxShadow(
-                                                color: bottles[index].last.withOpacity(0.7),
-                                                blurRadius: 10,
-                                                spreadRadius: 2,
-                                              ),
-                                            ],
-                                          ),
-                                          child: Icon(
-                                            Icons.arrow_downward,
-                                            color: Colors.white,
-                                            size: 20,
-                                          ),
-                                        ),
-                                      ),
-                                    ),
-                                  // Permanent completion indicator
-                                  if (_completedBottles.contains(index))
-                                    Positioned.fill(
-                                      child: Center(
-                                        child: Icon(
-                                          Icons.celebration,
-                                          color: Colors.white,
-                                          size: 40,
-                                        ),
-                                      ),
-                                    ),
-                                  // Completion animation overlay
-                                  if (_animatingCompletionIndex == index)
-                                    AnimatedBuilder(
-                                      animation: _completionAnimationController,
-                                      builder: (context, child) {
-                                        return Positioned.fill(
-                                          child: Container(
-                                            decoration: BoxDecoration(
-                                              borderRadius: BorderRadius.circular(14),
-                                              gradient: RadialGradient(
-                                                center: Alignment.center,
-                                                radius: _completionAnimationController.value * 2,
-                                                colors: [
-                                                  Colors.yellow.withOpacity(0.8 * (1 - _completionAnimationController.value)),
-                                                  Colors.transparent,
-                                                ],
-                                              ),
-                                            ),
-                                            child: Center(
-                                              child: Opacity(
-                                                opacity: _completionAnimationController.value,
-                                                child: Transform.scale(
-                                                  scale: _completionAnimationController.value,
-                                                  child: Icon(
-                                                    Icons.celebration,
-                                                    color: Colors.white,
-                                                    size: 50,
-                                                  ),
-                                                ),
-                                              ),
-                                            ),
-                                          ),
-                                        );
-                                      },
-                                    ),
-                                ],
-                              ),
-                            ),
+                            isCompleted: _completedBottles.contains(index),
+                            isAnimating: _animatingCompletionIndex == index,
+                            completionAnimationController: _completionAnimationController,
                           ),
                         );
                       },
@@ -801,7 +843,16 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                           }
 
                           final curvedValue = Curves.easeInOut.transform(_pourAnimationController.value);
-                          final position = Offset.lerp(startPos, endPos, curvedValue)!;
+                          // Calculate curved path using quadratic Bezier curve
+                          final controlPoint = Offset(
+                            (startPos.dx + endPos.dx) / 2,
+                            min(startPos.dy, endPos.dy) - 100, // Control point above the line
+                          );
+                          final t = curvedValue;
+                          final position = Offset(
+                            (1 - t) * (1 - t) * startPos.dx + 2 * (1 - t) * t * controlPoint.dx + t * t * endPos.dx,
+                            (1 - t) * (1 - t) * startPos.dy + 2 * (1 - t) * t * controlPoint.dy + t * t * endPos.dy,
+                          );
 
                           // Calculate hand position (slightly above the water drop)
                           final handPosition = Offset(
