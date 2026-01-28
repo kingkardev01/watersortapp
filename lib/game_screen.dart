@@ -826,14 +826,14 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                               startPos = fromBox.localToGlobal(Offset.zero);
                               endPos = toBox.localToGlobal(Offset.zero);
 
-                              // Adjust to center of bottles
+                              // Adjust to position above the top center of bottles for pouring animation
                               startPos = Offset(
                                 startPos.dx + fromBox.size.width / 2,
-                                startPos.dy + fromBox.size.height / 2,
+                                startPos.dy - 130, // Position above the bottle
                               );
                               endPos = Offset(
                                 endPos.dx + toBox.size.width / 2,
-                                endPos.dy + toBox.size.height / 2,
+                                endPos.dy - 130, // Position above the bottle
                               );
                             }
                           }
@@ -843,16 +843,8 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                           }
 
                           final curvedValue = Curves.easeInOut.transform(_pourAnimationController.value);
-                          // Calculate curved path using quadratic Bezier curve
-                          final controlPoint = Offset(
-                            (startPos.dx + endPos.dx) / 2,
-                            min(startPos.dy, endPos.dy) - 100, // Control point above the line
-                          );
-                          final t = curvedValue;
-                          final position = Offset(
-                            (1 - t) * (1 - t) * startPos.dx + 2 * (1 - t) * t * controlPoint.dx + t * t * endPos.dx,
-                            (1 - t) * (1 - t) * startPos.dy + 2 * (1 - t) * t * controlPoint.dy + t * t * endPos.dy,
-                          );
+                          // Calculate straight line path above the bottles
+                          final position = Offset.lerp(startPos, endPos, curvedValue)!;
 
                           // Calculate hand position (slightly above the water drop)
                           final handPosition = Offset(
