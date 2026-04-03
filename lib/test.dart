@@ -13,3 +13,17 @@ class _King1State extends State<King1> {
     return const Placeholder();
   }
 }
+
+class King2 extends StatefulWidget {
+  const King2({super.key});
+
+  @override
+  State<King2> createState() => _King2State();
+}
+
+class _King2State extends State<King2> {
+  @override
+  Widget build(BuildContext context) {
+    return const Placeholder();
+  }
+}
