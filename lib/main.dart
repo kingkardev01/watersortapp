@@ -1,9 +1,13 @@
 import 'package:flutter/material.dart';
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:watersortapp/splash_screen.dart';
 
-void main() {
+void main() async {
+  WidgetsFlutterBinding.ensureInitialized();
+  await GetStorage.init();
   runApp(const WaterSortApp());
 }
 
@@ -12,7 +16,7 @@ class WaterSortApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return MaterialApp(
+    return GetMaterialApp(
       title: 'SortPuz - Water Sort Puzzle',
       debugShowCheckedModeBanner: false,
       theme: ThemeData(

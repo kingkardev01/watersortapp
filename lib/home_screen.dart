@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:watersortapp/controllers/level_controller.dart';
 import 'package:watersortapp/game_screen.dart';
 
 class HomeScreen extends StatelessWidget {
@@ -6,6 +8,7 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final LevelController levelController = Get.put(LevelController());
     return Scaffold(
       appBar: AppBar(
         title: const Text(
@@ -61,55 +64,75 @@ class HomeScreen extends StatelessWidget {
               child: GridView.builder(
                 padding: const EdgeInsets.all(20),
                 gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-                  crossAxisCount: 3,
-                  crossAxisSpacing: 15,
-                  mainAxisSpacing: 15,
+                  crossAxisCount: 4,
+                  crossAxisSpacing: 10,
+                  mainAxisSpacing: 10,
                   childAspectRatio: 0.8,
                 ),
-                itemCount: 15,
+                itemCount: 100,
                 itemBuilder: (context, index) {
-                  return GestureDetector(
-                    onTap: () {
-                      Navigator.push(
-                        context,
-                        MaterialPageRoute(
-                          builder: (context) => GameScreen(level: index + 1),
+                  return Obx(() {
+                    int level = index + 1;
+                    bool isUnlocked = levelController.isLevelUnlocked(level);
+                    return GestureDetector(
+                      onTap: isUnlocked
+                          ? () async {
+                              final result = await Navigator.push(
+                                context,
+                                MaterialPageRoute(
+                                  builder: (context) => GameScreen(level: level),
+                                ),
+                              );
+                              if (result == true && level == levelController.unlockedLevels.value) {
+                                // Level completed, unlock next level
+                                levelController.unlockNextLevel();
+                              }
+                            }
+                          : () {
+                              // Show message for locked level
+                              ScaffoldMessenger.of(context).showSnackBar(
+                                SnackBar(
+                                  content: Text('Please complete Level ${level - 1} first!'),
+                                  duration: const Duration(seconds: 2),
+                                ),
+                              );
+                            },
+                      child: Container(
+                        decoration: BoxDecoration(
+                          color: isUnlocked ? Colors.white : Colors.grey.shade300,
+                          borderRadius: BorderRadius.circular(15),
+                          boxShadow: isUnlocked
+                              ? [
+                                  BoxShadow(
+                                    color: Colors.blue.shade200,
+                                    blurRadius: 8,
+                                    offset: const Offset(0, 2),
+                                  ),
+                                ]
+                              : null,
                         ),
-                      );
-                    },
-                    child: Container(
-                      decoration: BoxDecoration(
-                        color: Colors.white,
-                        borderRadius: BorderRadius.circular(15),
-                        boxShadow: [
-                          BoxShadow(
-                            color: Colors.blue.shade200,
-                            blurRadius: 8,
-                            offset: const Offset(0, 2),
-                          ),
-                        ],
-                      ),
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          Icon(
-                            Icons.water_drop,
-                            size: 40,
-                            color: Colors.blue.shade600,
-                          ),
-                          const SizedBox(height: 10),
-                          Text(
-                            'Level ${index + 1}',
-                            style: TextStyle(
-                              fontSize: 16,
-                              fontWeight: FontWeight.bold,
-                              color: Colors.blue.shade800,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(
+                              isUnlocked ? Icons.water_drop : Icons.lock,
+                              size: 40,
+                              color: isUnlocked ? Colors.blue.shade600 : Colors.grey.shade600,
                             ),
-                          ),
-                        ],
+                            const SizedBox(height: 10),
+                            Text(
+                              'Level $level',
+                              style: TextStyle(
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                color: isUnlocked ? Colors.blue.shade800 : Colors.grey.shade600,
+                              ),
+                            ),
+                          ],
+                        ),
                       ),
-                    ),
-                  );
+                    );
+                  });
                 },
               ),
             ),
@@ -117,5 +140,6 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+    
   }
 }
