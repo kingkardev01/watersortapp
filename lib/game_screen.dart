@@ -30,27 +30,29 @@ class TestTubeWidget extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 50,
-      height: 200,
+    return AnimatedContainer(
+      duration: const Duration(milliseconds: 300),
+      curve: Curves.easeInOut,
+      width: 52,
+      height: 202,
       decoration: BoxDecoration(
         color: Colors.white,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         border: Border.all(
-          color: selectedBottleIndex == index ? Colors.blue.shade600 : Colors.grey.shade300,
-          width: selectedBottleIndex == index ? 4 : 2,
+          color: selectedBottleIndex == index ? Colors.blue.shade600 : (pouringTargetIndex == index ? Colors.green.shade600 : Colors.grey.shade300),
+          width: selectedBottleIndex == index ? 4 : (pouringTargetIndex == index ? 3 : 2),
         ),
         boxShadow: [
           BoxShadow(
-            color: selectedBottleIndex == index ? Colors.blue.shade300.withOpacity(0.6) : Colors.grey.shade300.withOpacity(0.4),
-            blurRadius: selectedBottleIndex == index ? 12 : 8,
+            color: selectedBottleIndex == index ? Colors.blue.shade300.withOpacity(0.6) : (pouringTargetIndex == index ? Colors.green.shade300.withOpacity(0.5) : Colors.grey.shade300.withOpacity(0.4)),
+            blurRadius: selectedBottleIndex == index ? 14 : (pouringTargetIndex == index ? 12 : 8),
             offset: const Offset(0, 4),
-            spreadRadius: selectedBottleIndex == index ? 2 : 0,
+            spreadRadius: selectedBottleIndex == index ? 3 : (pouringTargetIndex == index ? 2 : 0),
           ),
         ],
       ),
       child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(14),
         child: Stack(
           children: [
             Column(
@@ -61,8 +63,8 @@ class TestTubeWidget extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(12),
-                      topRight: Radius.circular(12),
+                      topLeft: Radius.circular(14),
+                      topRight: Radius.circular(14),
                     ),
                     border: Border(
                       bottom: BorderSide(
@@ -100,14 +102,14 @@ class TestTubeWidget extends StatelessWidget {
                                         begin: Alignment.topCenter,
                                         end: Alignment.bottomCenter,
                                         colors: [
-                                          bottle[i].withOpacity(0.9),
-                                          bottle[i],
+                                          bottle[i].withOpacity(0.85),
+                                          bottle[i].withOpacity(0.95),
                                         ],
                                       ),
                                       border: Border(
                                         top: BorderSide(
-                                          color: Colors.white.withOpacity(0.4),
-                                          width: 1.0,
+                                          color: Colors.white.withOpacity(0.3),
+                                          width: 0.8,
                                         ),
                                       ),
                                     ),
@@ -123,8 +125,8 @@ class TestTubeWidget extends StatelessWidget {
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(12),
-                      bottomRight: Radius.circular(12),
+                      bottomLeft: Radius.circular(14),
+                      bottomRight: Radius.circular(14),
                     ),
                     border: Border(
                       top: BorderSide(
@@ -138,7 +140,7 @@ class TestTubeWidget extends StatelessWidget {
             ),
             if (selectedBottleIndex == index && bottle.isNotEmpty)
               Positioned(
-                top: -35,
+                top: -38,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -146,10 +148,10 @@ class TestTubeWidget extends StatelessWidget {
                     opacity: selectedBottleIndex == index ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 300),
                     child: AnimatedScale(
-                      scale: selectedBottleIndex == index ? 1.0 : 0.8,
+                      scale: selectedBottleIndex == index ? 1.0 : 0.85,
                       duration: const Duration(milliseconds: 300),
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
                           color: bottle.first,
                           shape: BoxShape.circle,
@@ -159,16 +161,16 @@ class TestTubeWidget extends StatelessWidget {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: bottle.first.withOpacity(0.7),
-                              blurRadius: 10,
-                              spreadRadius: 2,
+                              color: bottle.first.withOpacity(0.8),
+                              blurRadius: 12,
+                              spreadRadius: 3,
                             ),
                           ],
                         ),
                         child: Icon(
-                          Icons.pan_tool,
+                          Icons.pan_tool_alt,
                           color: Colors.white,
-                          size: 20,
+                          size: 22,
                         ),
                       ),
                     ),
@@ -177,7 +179,7 @@ class TestTubeWidget extends StatelessWidget {
               ),
             if (pouringTargetIndex == index)
               Positioned(
-                top: -35,
+                top: -38,
                 left: 0,
                 right: 0,
                 child: Center(
@@ -185,10 +187,10 @@ class TestTubeWidget extends StatelessWidget {
                     opacity: pouringTargetIndex == index ? 1.0 : 0.0,
                     duration: const Duration(milliseconds: 300),
                     child: AnimatedScale(
-                      scale: pouringTargetIndex == index ? 1.0 : 0.8,
+                      scale: pouringTargetIndex == index ? 1.0 : 0.85,
                       duration: const Duration(milliseconds: 300),
                       child: Container(
-                        padding: const EdgeInsets.all(6),
+                        padding: const EdgeInsets.all(7),
                         decoration: BoxDecoration(
                           color: pourAnimationColor ?? (selectedBottleIndex != null ? bottles[selectedBottleIndex!].first : Colors.grey),
                           shape: BoxShape.circle,
@@ -198,16 +200,16 @@ class TestTubeWidget extends StatelessWidget {
                           ),
                           boxShadow: [
                             BoxShadow(
-                              color: (pourAnimationColor ?? (selectedBottleIndex != null ? bottles[selectedBottleIndex!].first : Colors.grey)).withOpacity(0.7),
-                              blurRadius: 10,
-                              spreadRadius: 2,
+                              color: (pourAnimationColor ?? (selectedBottleIndex != null ? bottles[selectedBottleIndex!].first : Colors.grey)).withOpacity(0.8),
+                              blurRadius: 12,
+                              spreadRadius: 3,
                             ),
                           ],
                         ),
                         child: Icon(
-                          Icons.pan_tool,
+                          Icons.pan_tool_alt,
                           color: Colors.white,
-                          size: 20,
+                          size: 22,
                         ),
                       ),
                     ),
@@ -221,12 +223,12 @@ class TestTubeWidget extends StatelessWidget {
                   return Positioned.fill(
                     child: Container(
                       decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(12),
+                        borderRadius: BorderRadius.circular(14),
                         gradient: RadialGradient(
                           center: Alignment.center,
-                          radius: completionAnimationController.value * 2,
+                          radius: completionAnimationController.value * 2.2,
                           colors: [
-                            Colors.yellow.withOpacity(0.8 * (1 - completionAnimationController.value)),
+                            Colors.yellow.withOpacity(0.9 * (1 - completionAnimationController.value)),
                             Colors.transparent,
                           ],
                         ),
@@ -237,9 +239,9 @@ class TestTubeWidget extends StatelessWidget {
                           child: Transform.scale(
                             scale: completionAnimationController.value,
                             child: Icon(
-                              Icons.celebration,
+                              Icons.celebration_rounded,
                               color: Colors.white,
-                              size: 50,
+                              size: 55,
                             ),
                           ),
                         ),
@@ -252,21 +254,21 @@ class TestTubeWidget extends StatelessWidget {
               Positioned.fill(
                 child: Container(
                   decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(12),
+                    borderRadius: BorderRadius.circular(14),
                     gradient: RadialGradient(
                       center: Alignment.center,
-                      radius: 0.8,
+                      radius: 0.85,
                       colors: [
-                        Colors.yellow.withOpacity(0.4),
+                        Colors.yellow.withOpacity(0.5),
                         Colors.transparent,
                       ],
                     ),
                   ),
                   child: Center(
                     child: Icon(
-                      Icons.celebration,
+                      Icons.celebration_rounded,
                       color: Colors.white,
-                      size: 50,
+                      size: 55,
                     ),
                   ),
                 ),
@@ -297,6 +299,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   int? _pourToIndex;
   Color? _pourAnimationColor;
   bool _isPouring = false;
+  int _moveCount = 0;
   final Map<int, GlobalKey> _bottleKeys = {};
   final AudioPlayer _audioPlayer = AudioPlayer();
   final Set<int> _completedBottles = {};
@@ -447,6 +450,11 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
 
         await _pourAnimationController.reverse();
 
+        // Increment move count
+        setState(() {
+          _moveCount++;
+        });
+
         setState(() {
           _isPouring = false;
           _pourFromIndex = null;
@@ -523,15 +531,72 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
       barrierDismissible: false,
       builder: (BuildContext context) {
         return AlertDialog(
-          title: const Text('Congratulations!'),
-          content: Text('You completed Level ${widget.level}!'),
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(20),
+          ),
+          title: Column(
+            children: [
+              const Icon(
+                Icons.emoji_events,
+                size: 48,
+                color: Colors.amber,
+              ),
+              const SizedBox(height: 12),
+              Text(
+                'Congratulations!',
+                style: TextStyle(
+                  fontSize: 24,
+                  fontWeight: FontWeight.bold,
+                  color: Colors.blue[800]!,
+                ),
+              ),
+            ],
+          ),
+          content: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'You completed Level ${widget.level}!',
+                style: TextStyle(
+                  fontSize: 18,
+                  color: Colors.blue[700]!,
+                ),
+              ),
+              const SizedBox(height: 16),
+              Text(
+                'Moves: $_moveCount',
+                style: TextStyle(
+                  fontSize: 16,
+                  color: Colors.grey.shade600,
+                ),
+              ),
+            ],
+          ),
           actions: [
-            TextButton(
+            ElevatedButton(
               onPressed: () {
                 Navigator.of(context).pop();
                 Navigator.of(context).pop(true);
               },
-              child: const Text('Continue'),
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.blue.shade600,
+                foregroundColor: Colors.white,
+                padding: const EdgeInsets.symmetric(
+                  horizontal: 24,
+                  vertical: 12,
+                ),
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(12),
+                ),
+              ),
+              child: const Text(
+                'Continue',
+                style: TextStyle(
+                  fontSize: 16,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
             ),
           ],
         );
@@ -582,69 +647,70 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
         child: Column(
           children: [
             Padding(
-                padding: const EdgeInsets.all(16.0),
-                child: Column(
-                  children: [
-                    Text(
-                      'Sort liquid colors into bottles',
-                      style: TextStyle(
-                        fontSize: 18,
-                        fontWeight: FontWeight.bold,
-                        color: Colors.blue.shade800,
-                      ),
-                      textAlign: TextAlign.center,
+              padding: const EdgeInsets.all(16.0),
+              child: Column(
+                children: [
+                  Text(
+                    'Sort liquid colors into bottles',
+                    style: TextStyle(
+                      fontSize: 18,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.blue.shade800,
                     ),
-                    const SizedBox(height: 6),
-                    Text(
-                      'Tap a bottle to select, then tap another to pour',
-                      style: TextStyle(
-                        fontSize: 14,
-                        color: Colors.grey.shade600,
-                      ),
-                      textAlign: TextAlign.center,
+                    textAlign: TextAlign.center,
+                  ),
+                  const SizedBox(height: 6),
+                  Text(
+                    'Tap a bottle to select, then tap another to pour',
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: Colors.grey.shade600,
                     ),
-                    // Show selected color indicator
-                    if (selectedBottleIndex != null && bottles[selectedBottleIndex!].isNotEmpty)
-                      Row(
-                        mainAxisAlignment: MainAxisAlignment.center,
-                        children: [
-                          
-                          Container(
-                            width: 24,
-                            height: 24,
-                            decoration: BoxDecoration(
-                              color: bottles[selectedBottleIndex!].first,
-                              shape: BoxShape.circle,
-                              border: Border.all(
-                                color: Colors.white,
-                                width: 2,
+                    textAlign: TextAlign.center,
+                  ),
+                  // Show selected color indicator
+                  if (selectedBottleIndex != null && bottles[selectedBottleIndex!].isNotEmpty)
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        Container(
+                          width: 24,
+                          height: 33,
+                          decoration: BoxDecoration(
+                            color: bottles[selectedBottleIndex!].first,
+                            shape: BoxShape.circle,
+                            border: Border.all(
+                              color: Colors.white,
+                              width: 2,
+                            ),
+                            boxShadow: [
+                              BoxShadow(
+                                color: bottles[selectedBottleIndex!].last.withOpacity(0.5),
+                                blurRadius: 6,
                               ),
-                              boxShadow: [
-                                BoxShadow(
-                                  color: bottles[selectedBottleIndex!].last.withOpacity(0.5),
-                                  blurRadius: 6,
-                                ),
-                              ],
-                            ),
+                            ],
                           ),
-                          const SizedBox(width: 8),
-                          Text(
-                            'Selected: Top color will be poured',
-                            style: TextStyle(
-                              fontSize: 13,
-                              fontWeight: FontWeight.w600,
-                              color: Colors.blue.shade700,
-                            ),
+                        ),
+                        const SizedBox(width: 8),
+                        Text(
+                          'Selected: Top color will be poured',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: Colors.blue.shade700,
                           ),
-                        ],
-                      ),
-                      if(selectedBottleIndex ==null)
-                      Container(
-                         padding: const EdgeInsets.only(top: 12.0),
-                        height: 33,color: Colors.transparent,)
-                  ],
-                ),
+                        ),
+                      ],
+                    ),
+                  if (selectedBottleIndex == null)
+                    Container(
+                      padding: const EdgeInsets.only(top: 12.0),
+                      height: 33,
+                      color: Colors.transparent,
+                    )
+                ],
               ),
+            ),
             Expanded(
               child: Stack(
                 children: [
@@ -798,6 +864,23 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 ],
               ),
             ),
+            Center(
+              child: Text.rich(
+                TextSpan(
+                  children: [
+                    TextSpan(
+                      text: "Powered By ",
+                      style: TextStyle(color: Colors.grey), // এখানে তোমার পছন্দের রঙ দাও
+                    ),
+                    TextSpan(
+                      text: "Kingkar",
+                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            SizedBox(height: 10.0,)
           ],
         ),
       ),
