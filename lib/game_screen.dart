@@ -1,4 +1,3 @@
-
 import 'dart:math';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
@@ -36,15 +35,14 @@ class BottleComponent extends PositionComponent with TapCallbacks {
 
   Vector2 get centerPosition => position + size / 2;
 
+  Vector2 get mouthCenter => position + Vector2(width / 2, 0);
+
   @override
   Future<void> onLoad() async {
     await super.onLoad();
 
-    // Do not add RectangleHitbox for tap here.
     // TapCallbacks uses containsPoint().
-    // This way the visible bottle body and the touch area stay exactly same.
-
-    // Turn true only if you want to see the real component box.
+    // Bottle is drawn from 0,0 to width,height, so touch and visual position match.
     debugMode = false;
   }
 
@@ -56,9 +54,6 @@ class BottleComponent extends PositionComponent with TapCallbacks {
 
   @override
   bool containsPoint(Vector2 point) {
-    // This fixes your half-touch issue.
-    // Bottle is now drawn from 0,0 to width,height.
-    // So the touch area is the same full bottle rectangle.
     final localPoint = absoluteToLocal(point);
 
     final rect = Rect.fromLTWH(
@@ -89,20 +84,26 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       ..style = PaintingStyle.stroke
       ..strokeWidth = isSelected ? 3 : 2;
 
-    final rect = Rect.fromLTWH(0, 0, width, height);
+    final bottleRect = Rect.fromLTWH(0, 0, width, height);
 
     final bottleRRect = RRect.fromRectAndCorners(
-      rect,
+      bottleRect,
       bottomLeft: const Radius.circular(borderRadius),
       bottomRight: const Radius.circular(borderRadius),
       topLeft: const Radius.circular(7),
       topRight: const Radius.circular(7),
     );
 
+    // Clip all liquid inside the bottle shape.
+    // This makes the bottom color curve exactly like the bottle bottom.
+    final bottleClipPath = Path()..addRRect(bottleRRect);
+
     // Glass body
     canvas.drawRRect(bottleRRect, glassPaint);
 
-    // Liquid layers
+    canvas.save();
+    canvas.clipPath(bottleClipPath);
+
     final double innerLeft = 4;
     final double innerWidth = width - 8;
     final double bottomY = height - 8;
@@ -117,7 +118,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colors[i].withOpacity(0.78),
+            colors[i].withOpacity(0.80),
             colors[i],
           ],
         ).createShader(
@@ -129,7 +130,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       final bool isTopLayer = i == colors.length - 1;
 
       if (isTopLayer) {
-        final double wavePower = isPouringWave ? 5.5 : 2.0;
+        final double wavePower = isPouringWave ? 6.0 : 2.0;
         final double wave1 = sin(waveTime) * wavePower;
         final double wave2 = sin(waveTime + 1.8) * wavePower;
 
@@ -149,7 +150,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
             innerLeft,
             topY,
             innerWidth,
-            layerHeight - 1,
+            layerHeight + 1,
           ),
         );
       }
@@ -157,23 +158,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       canvas.drawPath(path, colorPaint);
     }
 
-    // Bottom rounded liquid mask feel
-    if (colors.isNotEmpty) {
-      final bottomColorPaint = Paint()..color = colors.first;
-      canvas.drawRRect(
-        RRect.fromRectAndCorners(
-          Rect.fromLTWH(
-            innerLeft,
-            bottomY - layerHeight,
-            innerWidth,
-            layerHeight,
-          ),
-          bottomLeft: const Radius.circular(borderRadius - 5),
-          bottomRight: const Radius.circular(borderRadius - 5),
-        ),
-        bottomColorPaint,
-      );
-    }
+    canvas.restore();
 
     // Glass highlight
     final shinePaint = Paint()..color = Colors.white.withOpacity(0.12);
@@ -209,7 +194,7 @@ class WaterStreamComponent extends PositionComponent {
   @override
   void update(double dt) {
     super.update(dt);
-    time += dt * 10;
+    time += dt * 8;
   }
 
   @override
@@ -218,17 +203,17 @@ class WaterStreamComponent extends PositionComponent {
 
     final paint = Paint()
       ..color = color.withOpacity(0.9)
-      ..strokeWidth = 7
+      ..strokeWidth = 6
       ..strokeCap = StrokeCap.round
       ..style = PaintingStyle.stroke;
 
     final path = Path()..moveTo(0, 0);
 
-    final waveOffset = sin(time) * 8;
+    final waveOffset = sin(time) * 3;
 
     path.quadraticBezierTo(
       diff.x * 0.45 + waveOffset,
-      diff.y * -0.12,
+      diff.y * -0.08,
       diff.x,
       diff.y,
     );
@@ -236,17 +221,17 @@ class WaterStreamComponent extends PositionComponent {
     canvas.drawPath(path, paint);
 
     final dropPaint = Paint()
-      ..color = color.withOpacity(0.75)
+      ..color = color.withOpacity(0.70)
       ..style = PaintingStyle.fill;
 
     canvas.drawCircle(
-      Offset(diff.x * 0.5 + sin(time) * 5, diff.y * 0.45),
-      3,
+      Offset(diff.x * 0.52 + sin(time) * 3, diff.y * 0.45),
+      2.8,
       dropPaint,
     );
 
     canvas.drawCircle(
-      Offset(diff.x * 0.75 + cos(time) * 4, diff.y * 0.7),
+      Offset(diff.x * 0.77 + cos(time) * 3, diff.y * 0.72),
       2,
       dropPaint,
     );
@@ -287,7 +272,6 @@ class WaterSortGame extends FlameGame {
       Colors.purple.shade600,
     ];
 
-    // 8 bottles: 6 filled color bottles, 2 empty bottles
     const int numColors = 6;
     final List<Color> gameColors = palette.sublist(0, numColors);
 
@@ -350,8 +334,19 @@ class WaterSortGame extends FlameGame {
     }
   }
 
+  bool _isCompletedBottle(int index) {
+    final bottle = bottlesData[index];
+
+    return bottle.length == BottleComponent.maxCapacity &&
+        bottle.every((color) => color == bottle.first);
+  }
+
   void _handleBottleTap(int index) {
     if (_isAnimating) return;
+
+    // If one bottle is already full with the same color,
+    // it is already matched, so touch should do nothing.
+    if (_isCompletedBottle(index)) return;
 
     if (selectedIndex == null) {
       if (bottlesData[index].isNotEmpty) {
@@ -364,7 +359,7 @@ class WaterSortGame extends FlameGame {
         bottle.add(
           MoveEffect.to(
             bottle.initialPosition - Vector2(0, 25),
-            EffectController(duration: 0.15, curve: Curves.easeOut),
+            EffectController(duration: 0.20, curve: Curves.easeOut),
             onComplete: () {
               _isAnimating = false;
             },
@@ -375,7 +370,9 @@ class WaterSortGame extends FlameGame {
       if (selectedIndex == index) {
         _deselect();
       } else {
-        if (_isValidMove(selectedIndex!, index)) {
+        if (_isCompletedBottle(selectedIndex!) || _isCompletedBottle(index)) {
+          _deselect();
+        } else if (_isValidMove(selectedIndex!, index)) {
           _tryPour(selectedIndex!, index);
         } else {
           _deselect();
@@ -407,7 +404,7 @@ class WaterSortGame extends FlameGame {
     bottle.add(
       MoveEffect.to(
         bottle.initialPosition,
-        EffectController(duration: 0.2, curve: Curves.easeInOut),
+        EffectController(duration: 0.22, curve: Curves.easeInOut),
         onComplete: () {
           selectedIndex = null;
           _isAnimating = false;
@@ -435,53 +432,79 @@ class WaterSortGame extends FlameGame {
     final fromBottle = bottleComponents[from];
     final toBottle = bottleComponents[to];
 
+    // Always use left-side pouring.
+    // The source bottle goes to the LEFT side of the target bottle,
+    // then pours water toward the RIGHT side, like real-life hand pouring.
+    const double pourDirection = 1.0;
+
+    // Slower lift, so movement feels smoother.
     final double liftY = min(
           fromBottle.initialPosition.y,
           toBottle.initialPosition.y,
         ) -
-        BottleComponent.bottleHeight * 0.7;
+        BottleComponent.bottleHeight * 0.72;
 
     fromBottle.add(
       MoveEffect.to(
         Vector2(fromBottle.position.x, liftY),
-        EffectController(duration: 0.2, curve: Curves.easeOut),
+        EffectController(duration: 0.35, curve: Curves.easeOutCubic),
         onComplete: () {
+          // IMPORTANT:
+          // For realistic pouring, the source bottle's LEFT mouth/lip is placed
+          // almost on the target bottle mouth.
+          //
+          // Because this component uses Anchor.topLeft, rotation happens around
+          // the top-left point. We use that top-left point as the pouring mouth.
+          // So the mouth stays very close when the bottle rotates.
+          final Vector2 closePourPosition = toBottle.mouthCenter +
+              Vector2(
+                -6,
+                -18,
+              );
+
           fromBottle.add(
             MoveEffect.to(
-              toBottle.position +
-                  Vector2(
-                    BottleComponent.bottleWidth * 0.80,
-                    -BottleComponent.bottleHeight * 0.72,
-                  ),
-              EffectController(duration: 0.3, curve: Curves.easeInOut),
+              closePourPosition,
+              EffectController(duration: 0.60, curve: Curves.easeInOutCubic),
               onComplete: () {
                 fromBottle.add(
                   RotateEffect.to(
-                    -1.55,
-                    EffectController(duration: 0.35, curve: Curves.easeInOut),
+                    -pourDirection * 1.28,
+                    EffectController(
+                      duration: 0.60,
+                      curve: Curves.easeInOutCubic,
+                    ),
                     onComplete: () async {
                       fromBottle.isPouringWave = true;
                       toBottle.isPouringWave = true;
 
+                      // Stream starts directly from the source bottle mouth/lip.
+                      // This makes mouth-to-mouth pouring look very close,
+                      // like the reference image.
+                      final streamStart = fromBottle.position +
+                          Vector2(
+                            3,
+                            4,
+                          );
+
+                      final streamTarget = toBottle.mouthCenter +
+                          Vector2(
+                            0,
+                            7,
+                          );
+
                       final stream = WaterStreamComponent(
                         color: colorToPour,
-                        position: fromBottle.centerPosition +
-                            Vector2(
-                              -BottleComponent.bottleWidth * 0.45,
-                              -BottleComponent.bottleHeight * 0.38,
-                            ),
-                        target: toBottle.centerPosition +
-                            Vector2(
-                              0,
-                              -BottleComponent.bottleHeight * 0.47,
-                            ),
+                        position: streamStart,
+                        target: streamTarget,
                       );
 
                       add(stream);
 
+                      // Slow liquid transfer.
                       for (int i = 0; i < pourAmount; i++) {
                         await Future.delayed(
-                          const Duration(milliseconds: 220),
+                          const Duration(milliseconds: 420),
                         );
 
                         if (bottlesData[from].isNotEmpty) {
@@ -490,7 +513,7 @@ class WaterSortGame extends FlameGame {
                       }
 
                       await Future.delayed(
-                        const Duration(milliseconds: 120),
+                        const Duration(milliseconds: 220),
                       );
 
                       onMoveUpdate(1);
@@ -503,21 +526,24 @@ class WaterSortGame extends FlameGame {
                         RotateEffect.to(
                           0,
                           EffectController(
-                            duration: 0.3,
-                            curve: Curves.easeInOut,
+                            duration: 0.45,
+                            curve: Curves.easeInOutCubic,
                           ),
                           onComplete: () {
                             fromBottle.add(
                               MoveEffect.to(
                                 Vector2(fromBottle.initialPosition.x, liftY),
-                                EffectController(duration: 0.2),
+                                EffectController(
+                                  duration: 0.35,
+                                  curve: Curves.easeInOutCubic,
+                                ),
                                 onComplete: () {
                                   fromBottle.add(
                                     MoveEffect.to(
                                       fromBottle.initialPosition,
                                       EffectController(
-                                        duration: 0.2,
-                                        curve: Curves.easeIn,
+                                        duration: 0.35,
+                                        curve: Curves.easeInCubic,
                                       ),
                                       onComplete: () {
                                         fromBottle.isSelected = false;
