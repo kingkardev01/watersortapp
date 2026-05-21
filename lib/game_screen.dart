@@ -75,59 +75,106 @@ class BottleComponent extends PositionComponent with TapCallbacks {
   void render(Canvas canvas) {
     super.render(canvas);
 
-    final glassPaint = Paint()
-      ..color = Colors.white.withOpacity(0.15)
+    final glassFillPaint = Paint()
+      ..color = Colors.white.withOpacity(0.09)
       ..style = PaintingStyle.fill;
 
-    final borderPaint = Paint()
-      ..color = isSelected ? Colors.blue.shade400 : Colors.white.withOpacity(0.45)
+    final glassBorderPaint = Paint()
+      ..color = isSelected ? Colors.blue.shade400 : Colors.white.withOpacity(0.48)
       ..style = PaintingStyle.stroke
-      ..strokeWidth = isSelected ? 3 : 2;
+      ..strokeWidth = isSelected ? 2.8 : 1.9
+      ..strokeCap = StrokeCap.round;
 
-    final bottleRect = Rect.fromLTWH(0, 0, width, height);
+    final sideHighlightPaint = Paint()
+      ..color = Colors.white.withOpacity(0.13)
+      ..style = PaintingStyle.fill;
 
-    final bottleRRect = RRect.fromRectAndCorners(
-      bottleRect,
-      bottomLeft: const Radius.circular(borderRadius),
-      bottomRight: const Radius.circular(borderRadius),
-      topLeft: const Radius.circular(7),
-      topRight: const Radius.circular(7),
-    );
+    final sideShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.10)
+      ..style = PaintingStyle.fill;
 
-    // Clip all liquid inside the bottle shape.
-    // This makes the bottom color curve exactly like the bottle bottom.
-    final bottleClipPath = Path()..addRRect(bottleRRect);
+    // Tube body.
+    // Top width and mouth width are same, so it does not look extra large.
+    final double bodyLeft = 4;
+    final double bodyTop = 8;
+    final double bodyRight = width - 4;
+    final double bodyBottom = height;
+    final double bodyWidth = bodyRight - bodyLeft;
+    final double bottomCurveHeight = 36;
 
-    // Glass body
-    canvas.drawRRect(bottleRRect, glassPaint);
+    final tubeFillPath = Path()
+      ..moveTo(bodyLeft, bodyTop)
+      ..lineTo(bodyLeft, bodyBottom - bottomCurveHeight)
+      ..quadraticBezierTo(
+        bodyLeft,
+        bodyBottom,
+        width / 2,
+        bodyBottom,
+      )
+      ..quadraticBezierTo(
+        bodyRight,
+        bodyBottom,
+        bodyRight,
+        bodyBottom - bottomCurveHeight,
+      )
+      ..lineTo(bodyRight, bodyTop)
+      ..close();
 
+    // Inner liquid shape. This fills the full curved bottom area.
+    final double innerLeft = 7;
+    final double innerTop = 15;
+    final double innerRight = width - 7;
+    final double innerBottom = height - 2;
+    final double innerBottomCurveHeight = 31;
+    final double innerWidth = innerRight - innerLeft;
+    final double innerHeight = innerBottom - innerTop;
+
+    final innerLiquidPath = Path()
+      ..moveTo(innerLeft, innerTop)
+      ..lineTo(innerLeft, innerBottom - innerBottomCurveHeight)
+      ..quadraticBezierTo(
+        innerLeft,
+        innerBottom,
+        width / 2,
+        innerBottom,
+      )
+      ..quadraticBezierTo(
+        innerRight,
+        innerBottom,
+        innerRight,
+        innerBottom - innerBottomCurveHeight,
+      )
+      ..lineTo(innerRight, innerTop)
+      ..close();
+
+    // Glass body fill.
+    canvas.drawPath(tubeFillPath, glassFillPaint);
+
+    // Liquid clipped inside tube body.
     canvas.save();
-    canvas.clipPath(bottleClipPath);
+    canvas.clipPath(innerLiquidPath);
 
-    final double innerLeft = 4;
-    final double innerWidth = width - 8;
-    final double bottomY = height - 8;
-    final double layerHeight = (height - 16) / maxCapacity;
+    final double liquidBottomY = innerBottom + 1;
+    final double layerHeight = innerHeight / maxCapacity;
 
     for (int i = 0; i < colors.length; i++) {
-      final double topY = bottomY - (i + 1) * layerHeight;
-      final double liquidBottomY = bottomY - i * layerHeight;
+      final double topY = liquidBottomY - (i + 1) * layerHeight;
+      final double bottomY = liquidBottomY - i * layerHeight;
 
       final colorPaint = Paint()
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colors[i].withOpacity(0.80),
+            colors[i].withOpacity(0.84),
             colors[i],
           ],
         ).createShader(
           Rect.fromLTWH(innerLeft, topY, innerWidth, layerHeight),
         );
 
-      final path = Path();
-
       final bool isTopLayer = i == colors.length - 1;
+      final path = Path();
 
       if (isTopLayer) {
         final double wavePower = isPouringWave ? 6.0 : 2.0;
@@ -136,13 +183,13 @@ class BottleComponent extends PositionComponent with TapCallbacks {
 
         path.moveTo(innerLeft, topY + wave1);
         path.quadraticBezierTo(
-          innerLeft + innerWidth * 0.5,
+          innerLeft + innerWidth * 0.50,
           topY - wavePower,
-          innerLeft + innerWidth,
+          innerRight,
           topY + wave2,
         );
-        path.lineTo(innerLeft + innerWidth, liquidBottomY);
-        path.lineTo(innerLeft, liquidBottomY);
+        path.lineTo(innerRight, bottomY + 2);
+        path.lineTo(innerLeft, bottomY + 2);
         path.close();
       } else {
         path.addRect(
@@ -150,7 +197,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
             innerLeft,
             topY,
             innerWidth,
-            layerHeight + 1,
+            layerHeight + 2,
           ),
         );
       }
@@ -158,23 +205,126 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       canvas.drawPath(path, colorPaint);
     }
 
+    if (colors.isNotEmpty) {
+      final bottomDepthPaint = Paint()
+        ..color = colors.first.withOpacity(0.24)
+        ..style = PaintingStyle.fill;
+
+      canvas.drawOval(
+        Rect.fromLTWH(
+          innerLeft + 3,
+          height - 29,
+          innerWidth - 6,
+          23,
+        ),
+        bottomDepthPaint,
+      );
+    }
+
     canvas.restore();
 
-    // Glass highlight
-    final shinePaint = Paint()..color = Colors.white.withOpacity(0.12);
+    // Soft side highlights.
     canvas.drawRRect(
       RRect.fromRectAndRadius(
-        Rect.fromLTWH(8, 14, 4, height - 35),
+        Rect.fromLTWH(11, 27, 4, height - 52),
         const Radius.circular(4),
       ),
-      shinePaint,
+      sideHighlightPaint,
     );
 
-    // Border and top rim
-    canvas.drawRRect(bottleRRect, borderPaint);
-    canvas.drawOval(
-      Rect.fromLTWH(-2, -4, width + 4, 9),
-      borderPaint,
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(width - 10, 27, 2.5, height - 52),
+        const Radius.circular(4),
+      ),
+      sideShadowPaint,
+    );
+
+    // Draw side borders and bottom curve only.
+    // The top line is not drawn here. Top mouth oval will represent the opening.
+    final borderPath = Path()
+      ..moveTo(bodyLeft, bodyTop + 3)
+      ..lineTo(bodyLeft, bodyBottom - bottomCurveHeight)
+      ..quadraticBezierTo(
+        bodyLeft,
+        bodyBottom,
+        width / 2,
+        bodyBottom,
+      )
+      ..quadraticBezierTo(
+        bodyRight,
+        bodyBottom,
+        bodyRight,
+        bodyBottom - bottomCurveHeight,
+      )
+      ..lineTo(bodyRight, bodyTop + 3);
+
+    canvas.drawPath(borderPath, glassBorderPaint);
+
+    // Clean top circular/oval mouth.
+    // Same width as the tube side. No oversized border.
+    final mouthOuterRect = Rect.fromLTWH(
+      bodyLeft,
+      bodyTop - 6,
+      bodyWidth,
+      13,
+    );
+
+    final mouthInnerRect = Rect.fromLTWH(
+      bodyLeft + 5,
+      bodyTop - 3,
+      bodyWidth - 10,
+      7,
+    );
+
+    final mouthInnerPaint = Paint()
+      ..color = Colors.black.withOpacity(0.30)
+      ..style = PaintingStyle.fill;
+
+    final mouthBorderPaint = Paint()
+      ..color = isSelected ? Colors.blue.shade400 : Colors.white.withOpacity(0.50)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isSelected ? 2.5 : 1.7;
+
+    final mouthShinePaint = Paint()
+      ..color = Colors.white.withOpacity(0.30)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.2
+      ..strokeCap = StrokeCap.round;
+
+    // Inner dark opening.
+    canvas.drawOval(mouthInnerRect, mouthInnerPaint);
+
+    // Thin same-width mouth border.
+    canvas.drawOval(mouthOuterRect, mouthBorderPaint);
+
+    // Small highlight only on the left/top part for realistic glass.
+    canvas.drawArc(
+      Rect.fromLTWH(
+        bodyLeft + 4,
+        bodyTop - 5,
+        bodyWidth - 8,
+        11,
+      ),
+      pi * 1.03,
+      pi * 0.42,
+      false,
+      mouthShinePaint,
+    );
+
+    // Bottom curve shine.
+    final bottomShinePaint = Paint()
+      ..color = Colors.white.withOpacity(0.12)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.8
+      ..strokeCap = StrokeCap.round;
+
+    canvas.drawArc(
+      Rect.fromLTWH(9, height - 32, width - 18, 28),
+      0.18,
+      pi - 0.36,
+      false,
+      bottomShinePaint,
     );
   }
 }
