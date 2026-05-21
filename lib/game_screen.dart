@@ -1,528 +1,602 @@
-import 'dart:math';
 
-import 'package:audioplayers/audioplayers.dart';
+import 'dart:math';
+import 'package:flame/components.dart';
+import 'package:flame/effects.dart';
+import 'package:flame/events.dart';
+import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 
-class TestTubeWidget extends StatelessWidget {
+class BottleComponent extends PositionComponent with TapCallbacks {
   final int index;
-  final List<Color> bottle;
-  final int? selectedBottleIndex;
-  final int? pouringTargetIndex;
-  final List<List<Color>> bottles;
-  final GlobalKey? key;
-  final bool isCompleted;
-  final bool isAnimating;
-  final AnimationController completionAnimationController;
-  final Color? pourAnimationColor;
+  List<Color> colors;
+  bool isSelected = false;
+  final Function(int) onTap;
+  late Vector2 initialPosition;
 
-  const TestTubeWidget({
+  double waveTime = 0;
+  bool isPouringWave = false;
+
+  static const double bottleWidth = 58;
+  static const double bottleHeight = 145;
+  static const int maxCapacity = 4;
+  static const double borderRadius = 22;
+
+  BottleComponent({
     required this.index,
-    required this.bottle,
-    required this.selectedBottleIndex,
-    required this.pouringTargetIndex,
-    required this.bottles,
-    this.key,
-    required this.isCompleted,
-    required this.isAnimating,
-    required this.completionAnimationController,
-    required this.pourAnimationColor,
-  }) : super(key: key);
+    required this.colors,
+    required this.onTap,
+    required Vector2 position,
+  }) : super(
+          position: position,
+          size: Vector2(bottleWidth, bottleHeight),
+          anchor: Anchor.topLeft,
+        ) {
+    initialPosition = position.clone();
+  }
+
+  Vector2 get centerPosition => position + size / 2;
 
   @override
-  Widget build(BuildContext context) {
-    return AnimatedContainer(
-      duration: const Duration(milliseconds: 300),
-      curve: Curves.easeInOut,
-      width: 52,
-      height: 202,
-      decoration: BoxDecoration(
-        color: Colors.white,
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(
-          color: selectedBottleIndex == index ? Colors.blue.shade600 : (pouringTargetIndex == index ? Colors.green.shade600 : Colors.grey.shade300),
-          width: selectedBottleIndex == index ? 4 : (pouringTargetIndex == index ? 3 : 2),
-        ),
-        boxShadow: [
-          BoxShadow(
-            color: selectedBottleIndex == index ? Colors.blue.shade300.withOpacity(0.6) : (pouringTargetIndex == index ? Colors.green.shade300.withOpacity(0.5) : Colors.grey.shade300.withOpacity(0.4)),
-            blurRadius: selectedBottleIndex == index ? 14 : (pouringTargetIndex == index ? 12 : 8),
-            offset: const Offset(0, 4),
-            spreadRadius: selectedBottleIndex == index ? 3 : (pouringTargetIndex == index ? 2 : 0),
-          ),
-        ],
-      ),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(14),
-        child: Stack(
-          children: [
-            Column(
-              children: [
-                Container(
-                  width: double.infinity,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.only(
-                      topLeft: Radius.circular(14),
-                      topRight: Radius.circular(14),
-                    ),
-                    border: Border(
-                      bottom: BorderSide(
-                        color: Colors.grey.shade300,
-                        width: 2.5,
-                      ),
-                    ),
-                  ),
-                ),
-                Expanded(
-                  child: Container(
-                    width: double.infinity,
-                    decoration: BoxDecoration(
-                      color: Colors.white,
-                    ),
-                    child: bottle.isEmpty
-                        ? Container()
-                        : Column(
-                            mainAxisAlignment: MainAxisAlignment.start,
-                            children: [
-                              Expanded(
-                                flex: 5 - bottle.length,
-                                child: Container(
-                                  color: Colors.white,
-                                ),
-                              ),
-                              for (int i = 0; i < bottle.length; i++)
-                                Expanded(
-                                  flex: 1,
-                                  child: Container(
-                                    width: double.infinity,
-                                    decoration: BoxDecoration(
-                                      color: bottle[i],
-                                      gradient: LinearGradient(
-                                        begin: Alignment.topCenter,
-                                        end: Alignment.bottomCenter,
-                                        colors: [
-                                          bottle[i].withOpacity(0.85),
-                                          bottle[i].withOpacity(0.95),
-                                        ],
-                                      ),
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: Colors.white.withOpacity(0.3),
-                                          width: 0.8,
-                                        ),
-                                      ),
-                                    ),
-                                  ),
-                                ),
-                            ],
-                          ),
-                  ),
-                ),
-                Container(
-                  width: double.infinity,
-                  height: 10,
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: const BorderRadius.only(
-                      bottomLeft: Radius.circular(14),
-                      bottomRight: Radius.circular(14),
-                    ),
-                    border: Border(
-                      top: BorderSide(
-                        color: Colors.grey.shade300,
-                        width: 2.5,
-                      ),
-                    ),
-                  ),
-                ),
-              ],
-            ),
-            if (selectedBottleIndex == index && bottle.isNotEmpty)
-              Positioned(
-                top: -38,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: AnimatedOpacity(
-                    opacity: selectedBottleIndex == index ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 300),
-                    child: AnimatedScale(
-                      scale: selectedBottleIndex == index ? 1.0 : 0.85,
-                      duration: const Duration(milliseconds: 300),
-                      child: Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: bottle.first,
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: bottle.first.withOpacity(0.8),
-                              blurRadius: 12,
-                              spreadRadius: 3,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.pan_tool_alt,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            if (pouringTargetIndex == index)
-              Positioned(
-                top: -38,
-                left: 0,
-                right: 0,
-                child: Center(
-                  child: AnimatedOpacity(
-                    opacity: pouringTargetIndex == index ? 1.0 : 0.0,
-                    duration: const Duration(milliseconds: 300),
-                    child: AnimatedScale(
-                      scale: pouringTargetIndex == index ? 1.0 : 0.85,
-                      duration: const Duration(milliseconds: 300),
-                      child: Container(
-                        padding: const EdgeInsets.all(7),
-                        decoration: BoxDecoration(
-                          color: pourAnimationColor ?? (selectedBottleIndex != null ? bottles[selectedBottleIndex!].first : Colors.grey),
-                          shape: BoxShape.circle,
-                          border: Border.all(
-                            color: Colors.white,
-                            width: 3,
-                          ),
-                          boxShadow: [
-                            BoxShadow(
-                              color: (pourAnimationColor ?? (selectedBottleIndex != null ? bottles[selectedBottleIndex!].first : Colors.grey)).withOpacity(0.8),
-                              blurRadius: 12,
-                              spreadRadius: 3,
-                            ),
-                          ],
-                        ),
-                        child: Icon(
-                          Icons.pan_tool_alt,
-                          color: Colors.white,
-                          size: 22,
-                        ),
-                      ),
-                    ),
-                  ),
-                ),
-              ),
-            if (isAnimating)
-              AnimatedBuilder(
-                animation: completionAnimationController,
-                builder: (context, child) {
-                  return Positioned.fill(
-                    child: Container(
-                      decoration: BoxDecoration(
-                        borderRadius: BorderRadius.circular(14),
-                        gradient: RadialGradient(
-                          center: Alignment.center,
-                          radius: completionAnimationController.value * 2.2,
-                          colors: [
-                            Colors.yellow.withOpacity(0.9 * (1 - completionAnimationController.value)),
-                            Colors.transparent,
-                          ],
-                        ),
-                      ),
-                      child: Center(
-                        child: Opacity(
-                          opacity: completionAnimationController.value,
-                          child: Transform.scale(
-                            scale: completionAnimationController.value,
-                            child: Icon(
-                              Icons.celebration_rounded,
-                              color: Colors.white,
-                              size: 55,
-                            ),
-                          ),
-                        ),
-                      ),
-                    ),
-                  );
-                },
-              ),
-            if (isCompleted)
-              Positioned.fill(
-                child: Container(
-                  decoration: BoxDecoration(
-                    borderRadius: BorderRadius.circular(14),
-                    gradient: RadialGradient(
-                      center: Alignment.center,
-                      radius: 0.85,
-                      colors: [
-                        Colors.yellow.withOpacity(0.5),
-                        Colors.transparent,
-                      ],
-                    ),
-                  ),
-                  child: Center(
-                    child: Icon(
-                      Icons.celebration_rounded,
-                      color: Colors.white,
-                      size: 55,
-                    ),
-                  ),
-                ),
-              ),
+  Future<void> onLoad() async {
+    await super.onLoad();
+
+    // Do not add RectangleHitbox for tap here.
+    // TapCallbacks uses containsPoint().
+    // This way the visible bottle body and the touch area stay exactly same.
+
+    // Turn true only if you want to see the real component box.
+    debugMode = false;
+  }
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    waveTime += dt * 4.0;
+  }
+
+  @override
+  bool containsPoint(Vector2 point) {
+    // This fixes your half-touch issue.
+    // Bottle is now drawn from 0,0 to width,height.
+    // So the touch area is the same full bottle rectangle.
+    final localPoint = absoluteToLocal(point);
+
+    final rect = Rect.fromLTWH(
+      0,
+      0,
+      width,
+      height,
+    );
+
+    return rect.contains(localPoint.toOffset());
+  }
+
+  @override
+  void onTapDown(TapDownEvent event) {
+    onTap(index);
+  }
+
+  @override
+  void render(Canvas canvas) {
+    super.render(canvas);
+
+    final glassPaint = Paint()
+      ..color = Colors.white.withOpacity(0.15)
+      ..style = PaintingStyle.fill;
+
+    final borderPaint = Paint()
+      ..color = isSelected ? Colors.blue.shade400 : Colors.white.withOpacity(0.45)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = isSelected ? 3 : 2;
+
+    final rect = Rect.fromLTWH(0, 0, width, height);
+
+    final bottleRRect = RRect.fromRectAndCorners(
+      rect,
+      bottomLeft: const Radius.circular(borderRadius),
+      bottomRight: const Radius.circular(borderRadius),
+      topLeft: const Radius.circular(7),
+      topRight: const Radius.circular(7),
+    );
+
+    // Glass body
+    canvas.drawRRect(bottleRRect, glassPaint);
+
+    // Liquid layers
+    final double innerLeft = 4;
+    final double innerWidth = width - 8;
+    final double bottomY = height - 8;
+    final double layerHeight = (height - 16) / maxCapacity;
+
+    for (int i = 0; i < colors.length; i++) {
+      final double topY = bottomY - (i + 1) * layerHeight;
+      final double liquidBottomY = bottomY - i * layerHeight;
+
+      final colorPaint = Paint()
+        ..shader = LinearGradient(
+          begin: Alignment.topCenter,
+          end: Alignment.bottomCenter,
+          colors: [
+            colors[i].withOpacity(0.78),
+            colors[i],
           ],
-        ),
-      ),
-    );
-  }
-}
+        ).createShader(
+          Rect.fromLTWH(innerLeft, topY, innerWidth, layerHeight),
+        );
 
-class GameScreen extends StatefulWidget {
-  final int level;
+      final path = Path();
 
-  const GameScreen({super.key, required this.level});
+      final bool isTopLayer = i == colors.length - 1;
 
-  @override
-  State<GameScreen> createState() => _GameScreenState();
-}
+      if (isTopLayer) {
+        final double wavePower = isPouringWave ? 5.5 : 2.0;
+        final double wave1 = sin(waveTime) * wavePower;
+        final double wave2 = sin(waveTime + 1.8) * wavePower;
 
-class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
-  late List<List<Color>> bottles;
-  int? selectedBottleIndex;
-  int? pouringTargetIndex;
-  final Random random = Random();
-  late AnimationController _pourAnimationController;
-  int? _pourFromIndex;
-  int? _pourToIndex;
-  Color? _pourAnimationColor;
-  bool _isPouring = false;
-  int _moveCount = 0;
-  final Map<int, GlobalKey> _bottleKeys = {};
-  final AudioPlayer _audioPlayer = AudioPlayer();
-  final Set<int> _completedBottles = {};
-  late AnimationController _completionAnimationController;
-  int? _animatingCompletionIndex;
+        path.moveTo(innerLeft, topY + wave1);
+        path.quadraticBezierTo(
+          innerLeft + innerWidth * 0.5,
+          topY - wavePower,
+          innerLeft + innerWidth,
+          topY + wave2,
+        );
+        path.lineTo(innerLeft + innerWidth, liquidBottomY);
+        path.lineTo(innerLeft, liquidBottomY);
+        path.close();
+      } else {
+        path.addRect(
+          Rect.fromLTWH(
+            innerLeft,
+            topY,
+            innerWidth,
+            layerHeight - 1,
+          ),
+        );
+      }
 
-  @override
-  void initState() {
-    super.initState();
-    _pourAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 800),
-    );
-    _completionAnimationController = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 1000),
-    );
-    _initializeGame();
-    for (int i = 0; i < 10; i++) {
-      _bottleKeys[i] = GlobalKey();
+      canvas.drawPath(path, colorPaint);
     }
+
+    // Bottom rounded liquid mask feel
+    if (colors.isNotEmpty) {
+      final bottomColorPaint = Paint()..color = colors.first;
+      canvas.drawRRect(
+        RRect.fromRectAndCorners(
+          Rect.fromLTWH(
+            innerLeft,
+            bottomY - layerHeight,
+            innerWidth,
+            layerHeight,
+          ),
+          bottomLeft: const Radius.circular(borderRadius - 5),
+          bottomRight: const Radius.circular(borderRadius - 5),
+        ),
+        bottomColorPaint,
+      );
+    }
+
+    // Glass highlight
+    final shinePaint = Paint()..color = Colors.white.withOpacity(0.12);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(8, 14, 4, height - 35),
+        const Radius.circular(4),
+      ),
+      shinePaint,
+    );
+
+    // Border and top rim
+    canvas.drawRRect(bottleRRect, borderPaint);
+    canvas.drawOval(
+      Rect.fromLTWH(-2, -4, width + 4, 9),
+      borderPaint,
+    );
+  }
+}
+
+class WaterStreamComponent extends PositionComponent {
+  final Color color;
+  final Vector2 target;
+
+  double time = 0;
+
+  WaterStreamComponent({
+    required this.color,
+    required Vector2 position,
+    required this.target,
+  }) : super(position: position);
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    time += dt * 10;
   }
 
   @override
-  void dispose() {
-    _pourAnimationController.dispose();
-    _completionAnimationController.dispose();
-    _audioPlayer.dispose();
-    super.dispose();
+  void render(Canvas canvas) {
+    final diff = target - position;
+
+    final paint = Paint()
+      ..color = color.withOpacity(0.9)
+      ..strokeWidth = 7
+      ..strokeCap = StrokeCap.round
+      ..style = PaintingStyle.stroke;
+
+    final path = Path()..moveTo(0, 0);
+
+    final waveOffset = sin(time) * 8;
+
+    path.quadraticBezierTo(
+      diff.x * 0.45 + waveOffset,
+      diff.y * -0.12,
+      diff.x,
+      diff.y,
+    );
+
+    canvas.drawPath(path, paint);
+
+    final dropPaint = Paint()
+      ..color = color.withOpacity(0.75)
+      ..style = PaintingStyle.fill;
+
+    canvas.drawCircle(
+      Offset(diff.x * 0.5 + sin(time) * 5, diff.y * 0.45),
+      3,
+      dropPaint,
+    );
+
+    canvas.drawCircle(
+      Offset(diff.x * 0.75 + cos(time) * 4, diff.y * 0.7),
+      2,
+      dropPaint,
+    );
+  }
+}
+
+class WaterSortGame extends FlameGame {
+  final int level;
+  final Function(int) onMoveUpdate;
+  final VoidCallback onWin;
+
+  late List<List<Color>> bottlesData;
+  List<BottleComponent> bottleComponents = [];
+
+  int? selectedIndex;
+  bool _isAnimating = false;
+
+  WaterSortGame({
+    required this.level,
+    required this.onMoveUpdate,
+    required this.onWin,
+  });
+
+  @override
+  Future<void> onLoad() async {
+    await super.onLoad();
+    _initializeGameData();
+    _createBottleComponents();
   }
 
-  void _initializeGame() {
-    bottles = _generateGameState();
-  }
-
-  List<List<Color>> _generateGameState() {
-    List<Color> colors = [
+  void _initializeGameData() {
+    final List<Color> palette = [
       Colors.red.shade600,
       Colors.blue.shade600,
       Colors.green.shade600,
       Colors.yellow.shade600,
       Colors.orange.shade600,
       Colors.purple.shade600,
-      Colors.pink.shade600,
-      Colors.teal.shade600,
-      Colors.indigo.shade600,
-      Colors.amber.shade600,
     ];
 
-    // Calculate number of colors based on level (more colors = harder)
-    int numColors = 5 + (widget.level ~/ 10); // Every 10 levels add 1 more color
-    if (numColors > 10) numColors = 10; // Max 10 colors
+    // 8 bottles: 6 filled color bottles, 2 empty bottles
+    const int numColors = 6;
+    final List<Color> gameColors = palette.sublist(0, numColors);
 
-    List<Color> gameColors = colors.sublist(0, numColors);
-    List<List<Color>> gameBottles = [];
-
-    for (Color color in gameColors) {
-      gameBottles.add([color, color, color, color, color]);
+    final List<Color> allColors = [];
+    for (final color in gameColors) {
+      for (int i = 0; i < BottleComponent.maxCapacity; i++) {
+        allColors.add(color);
+      }
     }
 
-    for (int i = 0; i < 5; i++) {
-      gameBottles.add([]);
+    allColors.shuffle();
+
+    bottlesData = List.generate(8, (i) => []);
+
+    for (int i = 0; i < numColors; i++) {
+      bottlesData[i] = allColors.sublist(
+        i * BottleComponent.maxCapacity,
+        (i + 1) * BottleComponent.maxCapacity,
+      );
     }
-
-    List<Color> allColors = [];
-    for (int j = 0; j < numColors; j++) {
-      allColors.addAll(gameBottles[j]);
-    }
-
-    allColors.shuffle(random);
-
-    for (int j = 0; j < numColors; j++) {
-      gameBottles[j] = allColors.sublist(j * 5, (j + 1) * 5);
-    }
-
-    gameBottles.shuffle(random);
-
-    return gameBottles;
   }
 
-  void _onBottleTap(int index) async {
-    if (_isPouring) return;
+  void _createBottleComponents() {
+    const double spacingX = 38;
+    const double spacingY = 50;
 
-    setState(() {
-      if (selectedBottleIndex == null) {
-        if (bottles[index].isNotEmpty) {
-          selectedBottleIndex = index;
-        }
-      } else {
-        if (selectedBottleIndex == index) {
-          selectedBottleIndex = null;
-          pouringTargetIndex = null;
-        } else {
-          pouringTargetIndex = index;
-          _pourWaterWithAnimation(selectedBottleIndex!, index);
-        }
+    final layout = [3, 3, 2];
+    int bottleIdx = 0;
+
+    double currentCenterY = BottleComponent.bottleHeight / 2 + 50;
+
+    for (final rowSize in layout) {
+      final double rowWidth =
+          (rowSize * BottleComponent.bottleWidth) + ((rowSize - 1) * spacingX);
+
+      double currentCenterX =
+          (size.x - rowWidth) / 2 + BottleComponent.bottleWidth / 2;
+
+      for (int i = 0; i < rowSize; i++) {
+        final topLeftPosition = Vector2(
+          currentCenterX - BottleComponent.bottleWidth / 2,
+          currentCenterY - BottleComponent.bottleHeight / 2,
+        );
+
+        final bottle = BottleComponent(
+          index: bottleIdx,
+          colors: bottlesData[bottleIdx],
+          position: topLeftPosition,
+          onTap: _handleBottleTap,
+        );
+
+        bottleComponents.add(bottle);
+        add(bottle);
+
+        currentCenterX += BottleComponent.bottleWidth + spacingX;
+        bottleIdx++;
       }
-    });
+
+      currentCenterY += BottleComponent.bottleHeight + spacingY;
+    }
   }
 
-  Future<void> _pourWaterWithAnimation(int fromIndex, int toIndex) async {
-    if (bottles[fromIndex].isEmpty || bottles[toIndex].length >= 5) {
-      setState(() {
-        selectedBottleIndex = null;
-        pouringTargetIndex = null;
-      });
-      return;
-    }
+  void _handleBottleTap(int index) {
+    if (_isAnimating) return;
 
-    List<Color> fromBottle = bottles[fromIndex];
-    List<Color> toBottle = bottles[toIndex];
+    if (selectedIndex == null) {
+      if (bottlesData[index].isNotEmpty) {
+        _isAnimating = true;
+        selectedIndex = index;
 
-    Color bottomColor = fromBottle.first;
+        final bottle = bottleComponents[index];
+        bottle.isSelected = true;
 
-    if (toBottle.isEmpty || toBottle.last == bottomColor) {
-      int sameColorCount = 0;
-      for (int i = 0; i < fromBottle.length; i++) {
-        if (fromBottle[i] == bottomColor) {
-          sameColorCount++;
-        } else {
-          break;
-        }
-      }
-
-      int pourCount = sameColorCount;
-      if (toBottle.length + pourCount > 5) {
-        pourCount = 5 - toBottle.length;
-      }
-
-      if (pourCount > 0 && sameColorCount > 0) {
-        _pourFromIndex = fromIndex;
-        _pourToIndex = toIndex;
-        _pourAnimationColor = bottomColor;
-
-        setState(() {
-          _isPouring = true;
-          selectedBottleIndex = null;
-        });
-
-        _audioPlayer.play(AssetSource('audio/water_sound.mp3'));
-
-        await _pourAnimationController.forward(from: 0.0);
-
-        for (int i = 0; i < pourCount; i++) {
-          Color waterColor = fromBottle.removeAt(0);
-          toBottle.add(waterColor);
-        }
-
-        await _pourAnimationController.reverse();
-
-        // Increment move count
-        setState(() {
-          _moveCount++;
-        });
-
-        setState(() {
-          _isPouring = false;
-          _pourFromIndex = null;
-          _pourToIndex = null;
-          _pourAnimationColor = null;
-          selectedBottleIndex = null;
-          pouringTargetIndex = null;
-        });
-
-        setState(() {});
-
-        for (int i = 0; i < bottles.length; i++) {
-          if (bottles[i].length == 5 && bottles[i].every((color) => color == bottles[i][0])) {
-            if (!_completedBottles.contains(i)) {
-              _completedBottles.add(i);
-              _animatingCompletionIndex = i;
-              _completionAnimationController.forward(from: 0.0).then((_) {
-                _animatingCompletionIndex = null;
-              });
-            }
-          }
-        }
-
-        bool gameWon = _isGameWon();
-
-        if (gameWon) {
-          Future.delayed(const Duration(milliseconds: 600), () {
-            if (mounted) {
-              _showSuccessDialog();
-            }
-          });
-        }
-      } else {
-        setState(() {
-          selectedBottleIndex = null;
-        });
+        bottle.add(
+          MoveEffect.to(
+            bottle.initialPosition - Vector2(0, 25),
+            EffectController(duration: 0.15, curve: Curves.easeOut),
+            onComplete: () {
+              _isAnimating = false;
+            },
+          ),
+        );
       }
     } else {
-      setState(() {
-        selectedBottleIndex = null;
-      });
-    }
-  }
-
-  bool _isGameWon() {
-    int completedBottles = 0;
-
-    for (var bottle in bottles) {
-      if (bottle.isEmpty) continue;
-
-      if (bottle.length == 5) {
-        Color firstColor = bottle[0];
-        bool allSameColor = true;
-
-        for (var color in bottle) {
-          if (color != firstColor) {
-            allSameColor = false;
-            break;
-          }
-        }
-
-        if (allSameColor) {
-          completedBottles++;
+      if (selectedIndex == index) {
+        _deselect();
+      } else {
+        if (_isValidMove(selectedIndex!, index)) {
+          _tryPour(selectedIndex!, index);
+        } else {
+          _deselect();
         }
       }
     }
+  }
 
-    return completedBottles >= 5;
+  bool _isValidMove(int from, int to) {
+    if (bottlesData[from].isEmpty) return false;
+    if (bottlesData[to].length >= BottleComponent.maxCapacity) return false;
+
+    if (bottlesData[to].isNotEmpty &&
+        bottlesData[to].last != bottlesData[from].last) {
+      return false;
+    }
+
+    return true;
+  }
+
+  void _deselect() {
+    if (selectedIndex == null) return;
+
+    _isAnimating = true;
+
+    final bottle = bottleComponents[selectedIndex!];
+    bottle.isSelected = false;
+
+    bottle.add(
+      MoveEffect.to(
+        bottle.initialPosition,
+        EffectController(duration: 0.2, curve: Curves.easeInOut),
+        onComplete: () {
+          selectedIndex = null;
+          _isAnimating = false;
+        },
+      ),
+    );
+  }
+
+  Future<void> _tryPour(int from, int to) async {
+    final Color colorToPour = bottlesData[from].last;
+
+    int pourAmount = 0;
+
+    for (int i = bottlesData[from].length - 1; i >= 0; i--) {
+      if (bottlesData[from][i] == colorToPour &&
+          (bottlesData[to].length + pourAmount) < BottleComponent.maxCapacity) {
+        pourAmount++;
+      } else {
+        break;
+      }
+    }
+
+    _isAnimating = true;
+
+    final fromBottle = bottleComponents[from];
+    final toBottle = bottleComponents[to];
+
+    final double liftY = min(
+          fromBottle.initialPosition.y,
+          toBottle.initialPosition.y,
+        ) -
+        BottleComponent.bottleHeight * 0.7;
+
+    fromBottle.add(
+      MoveEffect.to(
+        Vector2(fromBottle.position.x, liftY),
+        EffectController(duration: 0.2, curve: Curves.easeOut),
+        onComplete: () {
+          fromBottle.add(
+            MoveEffect.to(
+              toBottle.position +
+                  Vector2(
+                    BottleComponent.bottleWidth * 0.80,
+                    -BottleComponent.bottleHeight * 0.72,
+                  ),
+              EffectController(duration: 0.3, curve: Curves.easeInOut),
+              onComplete: () {
+                fromBottle.add(
+                  RotateEffect.to(
+                    -1.55,
+                    EffectController(duration: 0.35, curve: Curves.easeInOut),
+                    onComplete: () async {
+                      fromBottle.isPouringWave = true;
+                      toBottle.isPouringWave = true;
+
+                      final stream = WaterStreamComponent(
+                        color: colorToPour,
+                        position: fromBottle.centerPosition +
+                            Vector2(
+                              -BottleComponent.bottleWidth * 0.45,
+                              -BottleComponent.bottleHeight * 0.38,
+                            ),
+                        target: toBottle.centerPosition +
+                            Vector2(
+                              0,
+                              -BottleComponent.bottleHeight * 0.47,
+                            ),
+                      );
+
+                      add(stream);
+
+                      for (int i = 0; i < pourAmount; i++) {
+                        await Future.delayed(
+                          const Duration(milliseconds: 220),
+                        );
+
+                        if (bottlesData[from].isNotEmpty) {
+                          bottlesData[to].add(bottlesData[from].removeLast());
+                        }
+                      }
+
+                      await Future.delayed(
+                        const Duration(milliseconds: 120),
+                      );
+
+                      onMoveUpdate(1);
+                      remove(stream);
+
+                      fromBottle.isPouringWave = false;
+                      toBottle.isPouringWave = false;
+
+                      fromBottle.add(
+                        RotateEffect.to(
+                          0,
+                          EffectController(
+                            duration: 0.3,
+                            curve: Curves.easeInOut,
+                          ),
+                          onComplete: () {
+                            fromBottle.add(
+                              MoveEffect.to(
+                                Vector2(fromBottle.initialPosition.x, liftY),
+                                EffectController(duration: 0.2),
+                                onComplete: () {
+                                  fromBottle.add(
+                                    MoveEffect.to(
+                                      fromBottle.initialPosition,
+                                      EffectController(
+                                        duration: 0.2,
+                                        curve: Curves.easeIn,
+                                      ),
+                                      onComplete: () {
+                                        fromBottle.isSelected = false;
+                                        selectedIndex = null;
+                                        _isAnimating = false;
+
+                                        if (_checkWin()) {
+                                          onWin();
+                                        }
+                                      },
+                                    ),
+                                  );
+                                },
+                              ),
+                            );
+                          },
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
+  }
+
+  bool _checkWin() {
+    return bottlesData.every(
+      (bottle) =>
+          bottle.isEmpty ||
+          (bottle.length == BottleComponent.maxCapacity &&
+              bottle.every((color) => color == bottle[0])),
+    );
+  }
+
+  void reset() {
+    removeAll(bottleComponents);
+    bottleComponents.clear();
+
+    _initializeGameData();
+    _createBottleComponents();
+
+    selectedIndex = null;
+    _isAnimating = false;
+  }
+}
+
+class GameScreen extends StatefulWidget {
+  final int level;
+
+  const GameScreen({
+    super.key,
+    required this.level,
+  });
+
+  @override
+  State<GameScreen> createState() => _GameScreenState();
+}
+
+class _GameScreenState extends State<GameScreen> {
+  late WaterSortGame _game;
+  int _moveCount = 0;
+
+  @override
+  void initState() {
+    super.initState();
+
+    _game = WaterSortGame(
+      level: widget.level,
+      onMoveUpdate: (count) {
+        setState(() {
+          _moveCount += count;
+        });
+      },
+      onWin: _showSuccessDialog,
+    );
   }
 
   void _showSuccessDialog() {
@@ -548,7 +622,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
-                  color: Colors.blue[800]!,
+                  color: Colors.blue[800],
                 ),
               ),
             ],
@@ -560,7 +634,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
                 'You completed Level ${widget.level}!',
                 style: TextStyle(
                   fontSize: 18,
-                  color: Colors.blue[700]!,
+                  color: Colors.blue[700],
                 ),
               ),
               const SizedBox(height: 16),
@@ -607,6 +681,7 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: Colors.black,
       appBar: AppBar(
         title: Text('Level ${widget.level}'),
         backgroundColor: Colors.blue.shade600,
@@ -616,271 +691,39 @@ class _GameScreenState extends State<GameScreen> with TickerProviderStateMixin {
             icon: const Icon(Icons.refresh),
             onPressed: () {
               setState(() {
-                selectedBottleIndex = null;
-                _isPouring = false;
-                _pourFromIndex = null;
-                _pourToIndex = null;
-                _pourAnimationColor = null;
-                _pourAnimationController.reset();
-                _completedBottles.clear();
-                _animatingCompletionIndex = null;
-                _completionAnimationController.reset();
-                selectedBottleIndex = null;
-                pouringTargetIndex = null;
-                _initializeGame();
+                _moveCount = 0;
+                _game.reset();
               });
             },
           ),
         ],
       ),
-      body: Container(
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: [
-              Colors.blue.shade50,
-              Colors.white,
-            ],
-          ),
-        ),
+      body: SafeArea(
         child: Column(
           children: [
-            Padding(
-              padding: const EdgeInsets.all(16.0),
-              child: Column(
-                children: [
-                  Text(
-                    'Sort liquid colors into bottles',
-                    style: TextStyle(
-                      fontSize: 18,
-                      fontWeight: FontWeight.bold,
-                      color: Colors.blue.shade800,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  const SizedBox(height: 6),
-                  Text(
-                    'Tap a bottle to select, then tap another to pour',
-                    style: TextStyle(
-                      fontSize: 14,
-                      color: Colors.grey.shade600,
-                    ),
-                    textAlign: TextAlign.center,
-                  ),
-                  // Show selected color indicator
-                  if (selectedBottleIndex != null && bottles[selectedBottleIndex!].isNotEmpty)
-                    Row(
-                      mainAxisAlignment: MainAxisAlignment.center,
-                      children: [
-                        Container(
-                          width: 24,
-                          height: 33,
-                          decoration: BoxDecoration(
-                            color: bottles[selectedBottleIndex!].first,
-                            shape: BoxShape.circle,
-                            border: Border.all(
-                              color: Colors.white,
-                              width: 2,
-                            ),
-                            boxShadow: [
-                              BoxShadow(
-                                color: bottles[selectedBottleIndex!].last.withOpacity(0.5),
-                                blurRadius: 6,
-                              ),
-                            ],
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Text(
-                          'Selected: Top color will be poured',
-                          style: TextStyle(
-                            fontSize: 13,
-                            fontWeight: FontWeight.w600,
-                            color: Colors.blue.shade700,
-                          ),
-                        ),
-                      ],
-                    ),
-                  if (selectedBottleIndex == null)
-                    Container(
-                      padding: const EdgeInsets.only(top: 12.0),
-                      height: 33,
-                      color: Colors.transparent,
-                    )
-                ],
-              ),
-            ),
             Expanded(
-              child: Stack(
-                children: [
-                  GridView.builder(
-                    shrinkWrap: true,
-                    physics: const NeverScrollableScrollPhysics(),
-                    padding: const EdgeInsets.all(20),
-                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
-                      crossAxisCount: bottles.length <= 5 ? bottles.length : 5,
-                      crossAxisSpacing: 20,
-                      mainAxisSpacing: 20,
-                      childAspectRatio: 0.5,
-                    ),
-                    itemCount: bottles.length,
-                    itemBuilder: (context, index) {
-                      return GestureDetector(
-                        onTap: () => _onBottleTap(index),
-                        child: TestTubeWidget(
-                          index: index,
-                          bottle: bottles[index],
-                          selectedBottleIndex: selectedBottleIndex,
-                          pouringTargetIndex: pouringTargetIndex,
-                          bottles: bottles,
-                          key: _bottleKeys[index],
-                          isCompleted: _completedBottles.contains(index),
-                          isAnimating: _animatingCompletionIndex == index,
-                          completionAnimationController: _completionAnimationController,
-                          pourAnimationColor: _pourAnimationColor,
-                        ),
-                      );
-                    },
-                  ),
-                  if (_isPouring && _pourFromIndex != null && _pourToIndex != null && _pourAnimationColor != null)
-                    AnimatedBuilder(
-                      animation: _pourAnimationController,
-                      builder: (context, child) {
-                        Offset? startPos;
-                        Offset? endPos;
-
-                        // Get positions from GlobalKeys
-                        if (_bottleKeys[_pourFromIndex!]?.currentContext != null && _bottleKeys[_pourToIndex!]?.currentContext != null) {
-                          final RenderBox? fromBox = _bottleKeys[_pourFromIndex!]!.currentContext!.findRenderObject() as RenderBox?;
-                          final RenderBox? toBox = _bottleKeys[_pourToIndex!]!.currentContext!.findRenderObject() as RenderBox?;
-
-                          if (fromBox != null && toBox != null) {
-                            startPos = fromBox.localToGlobal(Offset.zero);
-                            endPos = toBox.localToGlobal(Offset.zero);
-
-                            // Adjust to position above the top center of bottles for pouring animation
-                            startPos = Offset(
-                              startPos.dx + fromBox.size.width / 2,
-                              startPos.dy - 130, // Position above the bottle
-                            );
-                            endPos = Offset(
-                              endPos.dx + toBox.size.width / 2,
-                              endPos.dy - 130, // Position above the bottle
-                            );
-                          }
-                        }
-
-                        if (startPos == null || endPos == null) {
-                          return const SizedBox.shrink();
-                        }
-
-                        final curvedValue = Curves.easeInOut.transform(_pourAnimationController.value);
-                        // Calculate straight line path above the bottles
-                        final position = Offset.lerp(startPos, endPos, curvedValue)!;
-
-                        // Calculate hand position (slightly above the water drop)
-                        final handPosition = Offset(
-                          position.dx - 30,
-                          position.dy - 50,
-                        );
-
-                        return Stack(
-                          children: [
-                            // Hand icon animation
-                            Positioned(
-                              left: handPosition.dx,
-                              top: handPosition.dy,
-                              child: Transform.rotate(
-                                angle: _pourAnimationController.value * 0.3,
-                                child: Opacity(
-                                  opacity: 1.0 - (_pourAnimationController.value * 0.3),
-                                  child: Icon(
-                                    Icons.pan_tool,
-                                    size: 40,
-                                    color: Colors.brown.shade600,
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Water drop animation
-                            Positioned(
-                              left: position.dx - 20,
-                              top: position.dy - 20,
-                              child: Transform.scale(
-                                scale: 1.0 + (0.3 * _pourAnimationController.value),
-                                child: Opacity(
-                                  opacity: 0.9 - (_pourAnimationController.value * 0.5),
-                                  child: Container(
-                                    width: 40,
-                                    height: 40,
-                                    decoration: BoxDecoration(
-                                      color: _pourAnimationColor,
-                                      shape: BoxShape.circle,
-                                      boxShadow: [
-                                        BoxShadow(
-                                          color: _pourAnimationColor!.withOpacity(0.6),
-                                          blurRadius: 15,
-                                          spreadRadius: 3,
-                                        ),
-                                      ],
-                                    ),
-                                    child: Icon(
-                                      Icons.water_drop,
-                                      color: Colors.white,
-                                      size: 24,
-                                    ),
-                                  ),
-                                ),
-                              ),
-                            ),
-                            // Water stream effect
-                            Positioned(
-                              left: position.dx - 3,
-                              top: handPosition.dy + 30,
-                              child: Opacity(
-                                opacity: 0.7 * (1.0 - _pourAnimationController.value),
-                                child: Container(
-                                  width: 6,
-                                  height: 30 * _pourAnimationController.value,
-                                  decoration: BoxDecoration(
-                                    gradient: LinearGradient(
-                                      begin: Alignment.topCenter,
-                                      end: Alignment.bottomCenter,
-                                      colors: [
-                                        _pourAnimationColor!.withOpacity(0.8),
-                                        _pourAnimationColor!.withOpacity(0.4),
-                                      ],
-                                    ),
-                                    borderRadius: BorderRadius.circular(3),
-                                  ),
-                                ),
-                              ),
-                            ),
-                          ],
-                        );
-                      },
-                    ),
-                ],
-              ),
+              child: GameWidget(game: _game),
             ),
             Center(
               child: Text.rich(
                 TextSpan(
                   children: [
                     TextSpan(
-                      text: "Powered By ",
-                      style: TextStyle(color: Colors.grey), // এখানে তোমার পছন্দের রঙ দাও
+                      text: 'Powered By ',
+                      style: TextStyle(color: Colors.grey.shade500),
                     ),
-                    TextSpan(
-                      text: "Kingkar",
-                      style: TextStyle(color: Colors.blue, fontWeight: FontWeight.bold),
+                    const TextSpan(
+                      text: 'Kingkar',
+                      style: TextStyle(
+                        color: Colors.blue,
+                        fontWeight: FontWeight.bold,
+                      ),
                     ),
                   ],
                 ),
               ),
             ),
-            SizedBox(height: 10.0,)
+            const SizedBox(height: 10),
           ],
         ),
       ),
