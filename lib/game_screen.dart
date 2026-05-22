@@ -5,6 +5,8 @@ import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:get/get.dart';
+import 'package:watersortapp/controllers/level_controller.dart';
 
 // ---------------------------------------------------------------------------
 // Sparkle particle for the bottle-sorted celebration
@@ -41,7 +43,6 @@ class SparkleParticle extends PositionComponent {
       ..color = color.withOpacity(_life.clamp(0.0, 1.0))
       ..style = PaintingStyle.fill;
 
-    // Draw a small star/diamond shape
     final s = _size * _life;
     final path = Path()
       ..moveTo(0, -s)
@@ -100,10 +101,47 @@ class CelebrationBurst extends PositionComponent {
       ));
     }
 
-    // Auto-remove this burst after all particles are gone (~0.7 s)
     Future.delayed(const Duration(milliseconds: 900), () {
       if (isMounted) removeFromParent();
     });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Hint highlight overlay component
+// ---------------------------------------------------------------------------
+class HintHighlightComponent extends PositionComponent {
+  final Color glowColor;
+  double _time = 0;
+
+  HintHighlightComponent({
+    required Vector2 position,
+    required Vector2 size,
+    required this.glowColor,
+  }) : super(position: position, size: size);
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt * 4;
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final alpha = (sin(_time) * 0.5 + 0.5) * 0.6 + 0.2;
+    final paint = Paint()
+      ..color = glowColor.withOpacity(alpha.clamp(0.0, 1.0))
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.5
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 8);
+
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromLTWH(0, 0, size.x, size.y),
+        const Radius.circular(22),
+      ),
+      paint,
+    );
   }
 }
 
@@ -114,13 +152,14 @@ class BottleComponent extends PositionComponent with TapCallbacks {
   final int index;
   List<Color> colors;
   bool isSelected = false;
+  bool isHinted = false;
+  bool isHintTarget = false;
   final Function(int) onTap;
   late Vector2 initialPosition;
 
   double waveTime = 0;
   bool isPouringWave = false;
 
-  // Celebration state
   bool _isCelebrating = false;
   double _celebrateTime = 0;
 
@@ -145,13 +184,11 @@ class BottleComponent extends PositionComponent with TapCallbacks {
   Vector2 get centerPosition => position + size / 2;
   Vector2 get mouthCenter => position + Vector2(width / 2, 0);
 
-  /// Trigger the bounce + glow celebration animation
   void celebrate() {
     if (_isCelebrating) return;
     _isCelebrating = true;
     _celebrateTime = 0;
 
-    // Bounce sequence: up → down → up → settle
     add(
       MoveEffect.by(
         Vector2(0, -18),
@@ -233,18 +270,61 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       );
     }
 
+    // Hint source glow (green)
+    if (isHinted) {
+      final hintPaint = Paint()
+        ..color = Colors.greenAccent.withOpacity(0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, width, height),
+          const Radius.circular(22),
+        ),
+        hintPaint,
+      );
+    }
+
+    // Hint target glow (orange)
+    if (isHintTarget) {
+      final hintPaint = Paint()
+        ..color = Colors.orangeAccent.withOpacity(0.35)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 10);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(0, 0, width, height),
+          const Radius.circular(22),
+        ),
+        hintPaint,
+      );
+    }
+
     final glassFillPaint = Paint()
       ..color = Colors.white.withOpacity(0.09)
       ..style = PaintingStyle.fill;
 
+    Color borderColor;
+    double borderWidth;
+    if (_isCelebrating) {
+      borderColor = Colors.amber.shade300;
+      borderWidth = 2.8;
+    } else if (isHinted) {
+      borderColor = Colors.greenAccent.shade400;
+      borderWidth = 2.5;
+    } else if (isHintTarget) {
+      borderColor = Colors.orangeAccent;
+      borderWidth = 2.5;
+    } else if (isSelected) {
+      borderColor = Colors.blue.shade400;
+      borderWidth = 2.8;
+    } else {
+      borderColor = Colors.white.withOpacity(0.48);
+      borderWidth = 1.9;
+    }
+
     final glassBorderPaint = Paint()
-      ..color = _isCelebrating
-          ? Colors.amber.shade300
-          : isSelected
-              ? Colors.blue.shade400
-              : Colors.white.withOpacity(0.48)
+      ..color = borderColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = _isCelebrating ? 2.8 : isSelected ? 2.8 : 1.9
+      ..strokeWidth = borderWidth
       ..strokeCap = StrokeCap.round;
 
     final sideHighlightPaint = Paint()
@@ -387,14 +467,25 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       ..color = Colors.black.withOpacity(0.30)
       ..style = PaintingStyle.fill;
 
+    Color mouthBorderColor;
+    if (_isCelebrating) {
+      mouthBorderColor = Colors.amber.shade300;
+    } else if (isHinted) {
+      mouthBorderColor = Colors.greenAccent.shade400;
+    } else if (isHintTarget) {
+      mouthBorderColor = Colors.orangeAccent;
+    } else if (isSelected) {
+      mouthBorderColor = Colors.blue.shade400;
+    } else {
+      mouthBorderColor = Colors.white.withOpacity(0.50);
+    }
+
     final mouthBorderPaint = Paint()
-      ..color = _isCelebrating
-          ? Colors.amber.shade300
-          : isSelected
-              ? Colors.blue.shade400
-              : Colors.white.withOpacity(0.50)
+      ..color = mouthBorderColor
       ..style = PaintingStyle.stroke
-      ..strokeWidth = _isCelebrating ? 2.5 : isSelected ? 2.5 : 1.7;
+      ..strokeWidth = (_isCelebrating || isHinted || isHintTarget || isSelected)
+          ? 2.5
+          : 1.7;
 
     final mouthShinePaint = Paint()
       ..color = Colors.white.withOpacity(0.30)
@@ -492,10 +583,19 @@ class WaterStreamComponent extends PositionComponent {
 // ---------------------------------------------------------------------------
 // WaterSortGame
 // ---------------------------------------------------------------------------
+
+/// Snapshot of game state for undo
+class _GameSnapshot {
+  final List<List<Color>> bottlesData;
+  _GameSnapshot(List<List<Color>> data)
+      : bottlesData = data.map((b) => List<Color>.from(b)).toList();
+}
+
 class WaterSortGame extends FlameGame {
   final int level;
   final Function(int) onMoveUpdate;
   final VoidCallback onWin;
+  final VoidCallback? onHintUsed;
 
   late List<List<Color>> bottlesData;
   List<BottleComponent> bottleComponents = [];
@@ -503,19 +603,25 @@ class WaterSortGame extends FlameGame {
   int? selectedIndex;
   bool _isAnimating = false;
 
-  // Audio player for water pour sound
+  // Undo stack
+  final List<_GameSnapshot> _undoStack = [];
+
+  // Hint state
+  int? _hintFrom;
+  int? _hintTo;
+
   final AudioPlayer _audioPlayer = AudioPlayer();
 
   WaterSortGame({
     required this.level,
     required this.onMoveUpdate,
     required this.onWin,
+    this.onHintUsed,
   });
 
   @override
   Future<void> onLoad() async {
     await super.onLoad();
-    // Pre-load the audio so first play has no delay
     await _audioPlayer.setSource(AssetSource('audio/water_sound.mp3'));
     _initializeGameData();
     _createBottleComponents();
@@ -531,9 +637,7 @@ class WaterSortGame extends FlameGame {
     try {
       await _audioPlayer.stop();
       await _audioPlayer.play(AssetSource('audio/water_sound.mp3'));
-    } catch (_) {
-      // Silently ignore audio errors so gameplay is not interrupted
-    }
+    } catch (_) {}
   }
 
   void _initializeGameData() {
@@ -566,6 +670,8 @@ class WaterSortGame extends FlameGame {
         (i + 1) * BottleComponent.maxCapacity,
       );
     }
+
+    _undoStack.clear();
   }
 
   void _createBottleComponents() {
@@ -614,8 +720,66 @@ class WaterSortGame extends FlameGame {
         bottle.every((color) => color == bottle.first);
   }
 
+  // ---- Hint logic ----
+  void showHint() {
+    if (_isAnimating) return;
+    _clearHint();
+
+    // Find first valid move
+    for (int from = 0; from < bottlesData.length; from++) {
+      if (bottlesData[from].isEmpty) continue;
+      if (_isCompletedBottle(from)) continue;
+      for (int to = 0; to < bottlesData.length; to++) {
+        if (from == to) continue;
+        if (_isCompletedBottle(to)) continue;
+        if (_isValidMove(from, to)) {
+          _hintFrom = from;
+          _hintTo = to;
+          bottleComponents[from].isHinted = true;
+          bottleComponents[to].isHintTarget = true;
+          onHintUsed?.call();
+
+          // Auto-clear hint after 2.5 seconds
+          Future.delayed(const Duration(milliseconds: 2500), _clearHint);
+          return;
+        }
+      }
+    }
+  }
+
+  void _clearHint() {
+    if (_hintFrom != null && _hintFrom! < bottleComponents.length) {
+      bottleComponents[_hintFrom!].isHinted = false;
+    }
+    if (_hintTo != null && _hintTo! < bottleComponents.length) {
+      bottleComponents[_hintTo!].isHintTarget = false;
+    }
+    _hintFrom = null;
+    _hintTo = null;
+  }
+
+  // ---- Undo logic ----
+  bool get canUndo => _undoStack.isNotEmpty && !_isAnimating;
+
+  void undo() {
+    if (!canUndo) return;
+    _clearHint();
+
+    final snapshot = _undoStack.removeLast();
+    for (int i = 0; i < bottlesData.length; i++) {
+      bottlesData[i] = snapshot.bottlesData[i];
+      // IMPORTANT: also update the BottleComponent's colors reference
+      // so the Flame render picks up the restored state immediately
+      if (i < bottleComponents.length) {
+        bottleComponents[i].colors = bottlesData[i];
+      }
+    }
+    onMoveUpdate(-1); // decrement move count
+  }
+
   void _handleBottleTap(int index) {
     if (_isAnimating) return;
+    _clearHint();
 
     if (_isCompletedBottle(index)) return;
 
@@ -684,13 +848,12 @@ class WaterSortGame extends FlameGame {
     );
   }
 
-  /// Trigger celebration for a bottle that just became fully sorted
   void _celebrateBottle(int index) {
     final bottle = bottleComponents[index];
     bottle.celebrate();
 
-    // Spawn sparkle burst at the bottle mouth
-    final burstPosition = bottle.initialPosition + Vector2(BottleComponent.bottleWidth / 2, 0);
+    final burstPosition = bottle.initialPosition +
+        Vector2(BottleComponent.bottleWidth / 2, 0);
     final burst = CelebrationBurst(
       bottleColor: bottlesData[index].first,
       position: burstPosition,
@@ -702,7 +865,6 @@ class WaterSortGame extends FlameGame {
     final Color colorToPour = bottlesData[from].last;
 
     int pourAmount = 0;
-
     for (int i = bottlesData[from].length - 1; i >= 0; i--) {
       if (bottlesData[from][i] == colorToPour &&
           (bottlesData[to].length + pourAmount) < BottleComponent.maxCapacity) {
@@ -711,6 +873,9 @@ class WaterSortGame extends FlameGame {
         break;
       }
     }
+
+    // Save undo snapshot before modifying state
+    _undoStack.add(_GameSnapshot(bottlesData));
 
     _isAnimating = true;
 
@@ -761,16 +926,12 @@ class WaterSortGame extends FlameGame {
                       );
 
                       add(stream);
-
-                      // ---- Play water sound as soon as stream starts ----
                       _playWaterSound();
 
-                      // Slow liquid transfer
                       for (int i = 0; i < pourAmount; i++) {
                         await Future.delayed(
                           const Duration(milliseconds: 420),
                         );
-
                         if (bottlesData[from].isNotEmpty) {
                           bottlesData[to].add(bottlesData[from].removeLast());
                         }
@@ -814,20 +975,14 @@ class WaterSortGame extends FlameGame {
                                         selectedIndex = null;
                                         _isAnimating = false;
 
-                                        // ---- Check if destination bottle is now sorted ----
                                         if (_isCompletedBottle(to)) {
                                           _celebrateBottle(to);
                                         }
-                                        // Also check source bottle (edge case: it emptied perfectly)
-                                        if (bottlesData[from].isEmpty ||
-                                            _isCompletedBottle(from)) {
-                                          if (_isCompletedBottle(from)) {
-                                            _celebrateBottle(from);
-                                          }
+                                        if (_isCompletedBottle(from)) {
+                                          _celebrateBottle(from);
                                         }
 
                                         if (_checkWin()) {
-                                          // Small delay so celebration plays before dialog
                                           Future.delayed(
                                             const Duration(milliseconds: 700),
                                             onWin,
@@ -865,6 +1020,7 @@ class WaterSortGame extends FlameGame {
   void reset() {
     removeAll(bottleComponents);
     bottleComponents.clear();
+    _clearHint();
 
     _initializeGameData();
     _createBottleComponents();
@@ -889,26 +1045,90 @@ class GameScreen extends StatefulWidget {
   State<GameScreen> createState() => _GameScreenState();
 }
 
-class _GameScreenState extends State<GameScreen> {
+class _GameScreenState extends State<GameScreen>
+    with SingleTickerProviderStateMixin {
   late WaterSortGame _game;
   int _moveCount = 0;
+
+  // Timer
+  late Stopwatch _stopwatch;
+  late AnimationController _timerTick;
+  bool _isPaused = false;
 
   @override
   void initState() {
     super.initState();
 
+    _stopwatch = Stopwatch()..start();
+
+    // Tick every second to rebuild timer display
+    _timerTick = AnimationController(
+      vsync: this,
+      duration: const Duration(seconds: 1),
+    )..repeat();
+    _timerTick.addListener(() {
+      if (mounted && !_isPaused) setState(() {});
+    });
+
     _game = WaterSortGame(
       level: widget.level,
-      onMoveUpdate: (count) {
+      onMoveUpdate: (delta) {
         setState(() {
-          _moveCount += count;
+          _moveCount = (_moveCount + delta).clamp(0, 9999);
         });
       },
-      onWin: _showSuccessDialog,
+      onWin: _handleWin,
     );
   }
 
+  @override
+  void dispose() {
+    _timerTick.dispose();
+    _stopwatch.stop();
+    super.dispose();
+  }
+
+  String get _timerText {
+    final elapsed = _stopwatch.elapsed;
+    final m = elapsed.inMinutes.remainder(60).toString().padLeft(2, '0');
+    final s = elapsed.inSeconds.remainder(60).toString().padLeft(2, '0');
+    return '$m:$s';
+  }
+
+  /// Star rating: 3 stars ≤ 15 moves, 2 stars ≤ 25, 1 star otherwise
+  int _starRating(int moves) {
+    if (moves <= 15) return 3;
+    if (moves <= 25) return 2;
+    return 1;
+  }
+
+  void _handleWin() {
+    _stopwatch.stop();
+    _timerTick.stop();
+
+    // Save best score
+    final levelController = Get.find<LevelController>();
+    levelController.saveBestScore(widget.level, _moveCount);
+
+    _showSuccessDialog();
+  }
+
+  void _togglePause() {
+    setState(() {
+      _isPaused = !_isPaused;
+      if (_isPaused) {
+        _stopwatch.stop();
+      } else {
+        _stopwatch.start();
+      }
+    });
+  }
+
   void _showSuccessDialog() {
+    final stars = _starRating(_moveCount);
+    final levelController = Get.find<LevelController>();
+    final best = levelController.getBestScore(widget.level);
+
     showDialog(
       context: context,
       barrierDismissible: false,
@@ -916,18 +1136,19 @@ class _GameScreenState extends State<GameScreen> {
         return AlertDialog(
           backgroundColor: Colors.white,
           shape: RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(20),
+            borderRadius: BorderRadius.circular(24),
           ),
           title: Column(
             children: [
-              const Icon(
-                Icons.emoji_events,
-                size: 48,
-                color: Colors.amber,
-              ),
-              const SizedBox(height: 12),
+              // Animated stars
+              _AnimatedStars(stars: stars),
+              const SizedBox(height: 10),
               Text(
-                'Congratulations!',
+                stars == 3
+                    ? '🎉 Perfect!'
+                    : stars == 2
+                        ? '👏 Well Done!'
+                        : '✅ Level Clear!',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -940,46 +1161,83 @@ class _GameScreenState extends State<GameScreen> {
             mainAxisSize: MainAxisSize.min,
             children: [
               Text(
-                'You completed Level ${widget.level}!',
+                'Level ${widget.level} Completed!',
                 style: TextStyle(
-                  fontSize: 18,
+                  fontSize: 17,
                   color: Colors.blue[700],
                 ),
               ),
-              const SizedBox(height: 16),
-              Text(
-                'Moves: $_moveCount',
-                style: TextStyle(
-                  fontSize: 16,
-                  color: Colors.grey.shade600,
-                ),
+              const SizedBox(height: 14),
+              _StatRow(
+                icon: Icons.swap_horiz_rounded,
+                label: 'Moves',
+                value: '$_moveCount',
+                color: Colors.blue,
               ),
+              const SizedBox(height: 6),
+              _StatRow(
+                icon: Icons.timer_outlined,
+                label: 'Time',
+                value: _timerText,
+                color: Colors.teal,
+              ),
+              if (best > 0) ...[
+                const SizedBox(height: 6),
+                _StatRow(
+                  icon: Icons.emoji_events_outlined,
+                  label: 'Best',
+                  value: '$best moves',
+                  color: Colors.amber.shade700,
+                ),
+              ],
             ],
           ),
           actions: [
-            ElevatedButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-                Navigator.of(context).pop(true);
-              },
-              style: ElevatedButton.styleFrom(
-                backgroundColor: Colors.blue.shade600,
-                foregroundColor: Colors.white,
-                padding: const EdgeInsets.symmetric(
-                  horizontal: 24,
-                  vertical: 12,
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        _moveCount = 0;
+                        _stopwatch.reset();
+                        _stopwatch.start();
+                        _timerTick.repeat();
+                        _game.reset();
+                      });
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Retry'),
+                    style: OutlinedButton.styleFrom(
+                      foregroundColor: Colors.blue.shade700,
+                      side: BorderSide(color: Colors.blue.shade300),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(12),
+                const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      Navigator.of(context).pop(true);
+                    },
+                    icon: const Icon(Icons.arrow_forward_rounded),
+                    label: const Text('Continue'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      padding: const EdgeInsets.symmetric(vertical: 12),
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
                 ),
-              ),
-              child: const Text(
-                'Continue',
-                style: TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.bold,
-                ),
-              ),
+              ],
             ),
           ],
         );
@@ -992,15 +1250,57 @@ class _GameScreenState extends State<GameScreen> {
     return Scaffold(
       backgroundColor: Colors.black,
       appBar: AppBar(
-        title: Text('Level ${widget.level}'),
-        backgroundColor: Colors.blue.shade600,
+        // Default back button stays (automaticallyImplyLeading: true by default)
+        title: Text(
+          'Level ${widget.level}',
+          style: const TextStyle(fontWeight: FontWeight.bold),
+        ),
+        backgroundColor: Colors.blue.shade700,
         foregroundColor: Colors.white,
+        elevation: 0,
         actions: [
+          // Timer display
+          Center(
+            child: Container(
+              margin: const EdgeInsets.only(right: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              decoration: BoxDecoration(
+                color: Colors.blue.shade900.withOpacity(0.5),
+                borderRadius: BorderRadius.circular(20),
+              ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const Icon(Icons.timer_outlined, size: 16),
+                  const SizedBox(width: 4),
+                  Text(
+                    _timerText,
+                    style: const TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.bold,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ),
+          // Pause button — right side, next to timer
+          IconButton(
+            icon: Icon(_isPaused ? Icons.play_arrow : Icons.pause),
+            tooltip: _isPaused ? 'Resume' : 'Pause',
+            onPressed: _togglePause,
+          ),
+          // Reset button
           IconButton(
             icon: const Icon(Icons.refresh),
+            tooltip: 'Restart',
             onPressed: () {
               setState(() {
                 _moveCount = 0;
+                _stopwatch.reset();
+                _stopwatch.start();
+                _isPaused = false;
                 _game.reset();
               });
             },
@@ -1008,34 +1308,278 @@ class _GameScreenState extends State<GameScreen> {
         ],
       ),
       body: SafeArea(
-        child: Column(
+        child: Stack(
           children: [
-            Expanded(
-              child: GameWidget(game: _game),
-            ),
-            Center(
-              child: Text.rich(
-                TextSpan(
-                  children: [
-                    TextSpan(
-                      text: 'Powered By ',
-                      style: TextStyle(color: Colors.grey.shade500),
-                    ),
-                    const TextSpan(
-                      text: 'Kingkar',
-                      style: TextStyle(
-                        color: Colors.blue,
-                        fontWeight: FontWeight.bold,
+            Column(
+              children: [
+                // Stats bar: Moves (left) | Stars (center) | Undo (right)
+                Container(
+                  color: Colors.blue.shade800,
+                  padding: const EdgeInsets.symmetric(
+                      horizontal: 16, vertical: 8),
+                  child: Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      // Move counter — left
+                      _InfoChip(
+                        icon: Icons.swap_horiz_rounded,
+                        label: 'Moves: $_moveCount',
+                        color: Colors.white,
+                      ),
+                      // Star rating — center
+                      Row(
+                        children: List.generate(3, (i) {
+                          final filled = i < _starRating(_moveCount);
+                          return Icon(
+                            filled ? Icons.star : Icons.star_border,
+                            color: filled
+                                ? Colors.amber
+                                : Colors.white.withOpacity(0.4),
+                            size: 20,
+                          );
+                        }),
+                      ),
+                      // Undo button — right
+                      GestureDetector(
+                        onTap: () => _game.undo(),
+                        child: Container(
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 12, vertical: 4),
+                          decoration: BoxDecoration(
+                            color: Colors.blue.shade300.withOpacity(0.2),
+                            borderRadius: BorderRadius.circular(10),
+                            border: Border.all(
+                                color: Colors.blue.shade200, width: 1.2),
+                          ),
+                          child: Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              Icon(Icons.undo_rounded,
+                                  color: Colors.blue.shade100, size: 18),
+                              const SizedBox(width: 4),
+                              Text(
+                                'Undo',
+                                style: TextStyle(
+                                  color: Colors.blue.shade100,
+                                  fontSize: 13,
+                                  fontWeight: FontWeight.bold,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+                Expanded(
+                  child: GameWidget(game: _game),
+                ),
+                Center(
+                  child: Padding(
+                    padding: const EdgeInsets.only(bottom: 8, top: 4),
+                    child: Text.rich(
+                      TextSpan(
+                        children: [
+                          TextSpan(
+                            text: 'Powered By ',
+                            style: TextStyle(color: Colors.grey.shade500),
+                          ),
+                          const TextSpan(
+                            text: 'Kingkar',
+                            style: TextStyle(
+                              color: Colors.blue,
+                              fontWeight: FontWeight.bold,
+                            ),
+                          ),
+                        ],
                       ),
                     ),
-                  ],
+                  ),
+                ),
+              ],
+            ),
+            // Pause overlay
+            if (_isPaused)
+              Container(
+                color: Colors.black.withOpacity(0.75),
+                child: Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const Icon(Icons.pause_circle_filled,
+                          color: Colors.white, size: 72),
+                      const SizedBox(height: 16),
+                      const Text(
+                        'PAUSED',
+                        style: TextStyle(
+                          color: Colors.white,
+                          fontSize: 28,
+                          fontWeight: FontWeight.bold,
+                          letterSpacing: 4,
+                        ),
+                      ),
+                      const SizedBox(height: 24),
+                      ElevatedButton.icon(
+                        onPressed: _togglePause,
+                        icon: const Icon(Icons.play_arrow),
+                        label: const Text('Resume'),
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: Colors.blue.shade600,
+                          foregroundColor: Colors.white,
+                          padding: const EdgeInsets.symmetric(
+                              horizontal: 32, vertical: 14),
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                        ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
-            ),
-            const SizedBox(height: 10),
           ],
         ),
       ),
+    );
+  }
+}
+
+// ---------------------------------------------------------------------------
+// Helper widgets
+// ---------------------------------------------------------------------------
+
+class _InfoChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final Color color;
+
+  const _InfoChip({
+    required this.icon,
+    required this.label,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        Icon(icon, color: color, size: 16),
+        const SizedBox(width: 4),
+        Text(
+          label,
+          style: TextStyle(
+            color: color,
+            fontSize: 13,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _StatRow extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final String value;
+  final Color color;
+
+  const _StatRow({
+    required this.icon,
+    required this.label,
+    required this.value,
+    required this.color,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      children: [
+        Icon(icon, color: color, size: 18),
+        const SizedBox(width: 8),
+        Text(
+          label,
+          style: TextStyle(color: Colors.grey.shade600, fontSize: 14),
+        ),
+        const Spacer(),
+        Text(
+          value,
+          style: TextStyle(
+            color: color,
+            fontSize: 15,
+            fontWeight: FontWeight.bold,
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Animated star row for win dialog
+class _AnimatedStars extends StatefulWidget {
+  final int stars;
+  const _AnimatedStars({required this.stars});
+
+  @override
+  State<_AnimatedStars> createState() => _AnimatedStarsState();
+}
+
+class _AnimatedStarsState extends State<_AnimatedStars>
+    with TickerProviderStateMixin {
+  late List<AnimationController> _controllers;
+  late List<Animation<double>> _scales;
+
+  @override
+  void initState() {
+    super.initState();
+    _controllers = List.generate(
+      3,
+      (i) => AnimationController(
+        vsync: this,
+        duration: const Duration(milliseconds: 400),
+      ),
+    );
+    _scales = _controllers
+        .map(
+          (c) => Tween<double>(begin: 0.0, end: 1.0).animate(
+            CurvedAnimation(parent: c, curve: Curves.elasticOut),
+          ),
+        )
+        .toList();
+
+    // Stagger the star animations
+    for (int i = 0; i < widget.stars; i++) {
+      Future.delayed(Duration(milliseconds: 200 + i * 180), () {
+        if (mounted) _controllers[i].forward();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    for (final c in _controllers) {
+      c.dispose();
+    }
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: List.generate(3, (i) {
+        final filled = i < widget.stars;
+        return ScaleTransition(
+          scale: filled ? _scales[i] : const AlwaysStoppedAnimation(1.0),
+          child: Icon(
+            filled ? Icons.star_rounded : Icons.star_border_rounded,
+            color: filled ? Colors.amber : Colors.grey.shade300,
+            size: 44,
+          ),
+        );
+      }),
     );
   }
 }

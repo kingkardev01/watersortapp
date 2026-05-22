@@ -67,15 +67,19 @@ class HomeScreen extends StatelessWidget {
                   crossAxisCount: 4,
                   crossAxisSpacing: 10,
                   mainAxisSpacing: 15,
-                  childAspectRatio: 0.85,
+                  childAspectRatio: 0.80,
                 ),
                 itemCount: 100,
                 itemBuilder: (context, index) {
                   return Obx(() {
                     int level = index + 1;
                     bool isUnlocked = levelController.isLevelUnlocked(level);
-                    bool isCurrentLevel = level == levelController.unlockedLevels.value;
-                    
+                    bool isCurrentLevel =
+                        level == levelController.unlockedLevels.value;
+                    bool isCompleted = levelController.isLevelCompleted(level);
+                    int bestScore = levelController.getBestScore(level);
+                    int stars = _starRating(bestScore);
+
                     return AnimatedContainer(
                       duration: const Duration(milliseconds: 300),
                       curve: Curves.easeInOut,
@@ -86,19 +90,21 @@ class HomeScreen extends StatelessWidget {
                                 final result = await Navigator.push(
                                   context,
                                   MaterialPageRoute(
-                                    builder: (context) => GameScreen(level: level),
+                                    builder: (context) =>
+                                        GameScreen(level: level),
                                   ),
                                 );
-                                if (result == true && level == levelController.unlockedLevels.value) {
-                                  // Level completed, unlock next level
+                                if (result == true &&
+                                    level ==
+                                        levelController.unlockedLevels.value) {
                                   levelController.unlockNextLevel();
                                 }
                               }
                             : () {
-                                // Show message for locked level
                                 ScaffoldMessenger.of(context).showSnackBar(
                                   SnackBar(
-                                    content: Text('Please complete Level ${level - 1} first!'),
+                                    content: Text(
+                                        'Please complete Level ${level - 1} first!'),
                                     duration: const Duration(seconds: 2),
                                   ),
                                 );
@@ -109,25 +115,34 @@ class HomeScreen extends StatelessWidget {
                                 ? LinearGradient(
                                     begin: Alignment.topLeft,
                                     end: Alignment.bottomRight,
-                                    colors: isCurrentLevel
+                                    colors: isCompleted
                                         ? [
-                                            Colors.blue.shade400,
-                                            Colors.blue.shade200,
+                                            Colors.green.shade100,
+                                            Colors.green.shade50,
                                           ]
-                                        : [
-                                            Colors.blue.shade50,
-                                            Colors.white,
-                                          ],
+                                        : isCurrentLevel
+                                            ? [
+                                                Colors.blue.shade400,
+                                                Colors.blue.shade200,
+                                              ]
+                                            : [
+                                                Colors.blue.shade50,
+                                                Colors.white,
+                                              ],
                                   )
                                 : null,
                             color: isUnlocked ? null : Colors.grey.shade300,
                             borderRadius: BorderRadius.circular(20),
                             border: isUnlocked
                                 ? Border.all(
-                                    color: isCurrentLevel
-                                        ? Colors.blue.shade300
-                                        : Colors.blue.shade200,
-                                    width: isCurrentLevel ? 2 : 1.5,
+                                    color: isCompleted
+                                        ? Colors.green.shade400
+                                        : isCurrentLevel
+                                            ? Colors.blue.shade300
+                                            : Colors.blue.shade200,
+                                    width: (isCurrentLevel || isCompleted)
+                                        ? 2
+                                        : 1.5,
                                   )
                                 : Border.all(
                                     color: Colors.grey.shade400,
@@ -136,14 +151,19 @@ class HomeScreen extends StatelessWidget {
                             boxShadow: isUnlocked
                                 ? [
                                     BoxShadow(
-                                      color: Colors.blue.shade200.withOpacity(0.4),
+                                      color: isCompleted
+                                          ? Colors.green.shade200
+                                              .withOpacity(0.4)
+                                          : Colors.blue.shade200
+                                              .withOpacity(0.4),
                                       blurRadius: 12,
                                       offset: const Offset(0, 6),
                                     ),
                                   ]
                                 : [
                                     BoxShadow(
-                                      color: Colors.grey.shade400.withOpacity(0.2),
+                                      color: Colors.grey.shade400
+                                          .withOpacity(0.2),
                                       blurRadius: 4,
                                       offset: const Offset(0, 2),
                                     ),
@@ -152,39 +172,72 @@ class HomeScreen extends StatelessWidget {
                           child: Column(
                             mainAxisAlignment: MainAxisAlignment.center,
                             children: [
-                              AnimatedContainer(
-                                duration: const Duration(milliseconds: 500),
-                                curve: Curves.elasticOut,
-                                transform: Matrix4.identity()
-                                  ..scale(isCurrentLevel ? 1.1 : 1.0),
-                                child: Icon(
-                                  isUnlocked ? Icons.water_drop : Icons.lock,
-                                  size: 40,
-                                  color: isUnlocked 
-                                      ? (isCurrentLevel 
-                                          ? Colors.blue.shade700 
-                                          : Colors.blue.shade600)
-                                      : Colors.grey.shade600,
-                                ),
+                              Stack(
+                                alignment: Alignment.topRight,
+                                children: [
+                                  AnimatedContainer(
+                                    duration:
+                                        const Duration(milliseconds: 500),
+                                    curve: Curves.elasticOut,
+                                    transform: Matrix4.diagonal3Values(
+                                      isCurrentLevel ? 1.1 : 1.0,
+                                      isCurrentLevel ? 1.1 : 1.0,
+                                      1.0,
+                                    ),
+                                    child: Icon(
+                                      isUnlocked
+                                          ? (isCompleted
+                                              ? Icons.check_circle_rounded
+                                              : Icons.water_drop)
+                                          : Icons.lock,
+                                      size: 36,
+                                      color: isUnlocked
+                                          ? (isCompleted
+                                              ? Colors.green.shade600
+                                              : isCurrentLevel
+                                                  ? Colors.blue.shade700
+                                                  : Colors.blue.shade600)
+                                          : Colors.grey.shade600,
+                                    ),
+                                  ),
+                                ],
                               ),
-                              const SizedBox(height: 8),
+                              const SizedBox(height: 4),
                               Text(
                                 'Level $level',
                                 style: TextStyle(
-                                  fontSize: 15,
+                                  fontSize: 13,
                                   fontWeight: FontWeight.bold,
-                                  color: isUnlocked 
-                                      ? (isCurrentLevel 
-                                          ? Colors.blue.shade900 
-                                          : Colors.blue.shade800)
+                                  color: isUnlocked
+                                      ? (isCompleted
+                                          ? Colors.green.shade800
+                                          : isCurrentLevel
+                                              ? Colors.blue.shade900
+                                              : Colors.blue.shade800)
                                       : Colors.grey.shade600,
                                 ),
                               ),
-                              if (isCurrentLevel)
+                              // Star rating for completed levels
+                              if (isCompleted) ...[
+                                const SizedBox(height: 2),
+                                Row(
+                                  mainAxisAlignment: MainAxisAlignment.center,
+                                  children: List.generate(3, (i) {
+                                    return Icon(
+                                      i < stars
+                                          ? Icons.star_rounded
+                                          : Icons.star_border_rounded,
+                                      color: i < stars
+                                          ? Colors.amber
+                                          : Colors.grey.shade400,
+                                      size: 13,
+                                    );
+                                  }),
+                                ),
+                              ] else if (isCurrentLevel) ...[
                                 Container(
-                                  
                                   padding: const EdgeInsets.symmetric(
-                                      horizontal: 8, ),
+                                      horizontal: 6),
                                   decoration: BoxDecoration(
                                     color: Colors.amber.shade200,
                                     borderRadius: BorderRadius.circular(12),
@@ -192,12 +245,13 @@ class HomeScreen extends StatelessWidget {
                                   child: Text(
                                     'NEW!',
                                     style: TextStyle(
-                                      fontSize: 10,
+                                      fontSize: 9,
                                       fontWeight: FontWeight.bold,
                                       color: Colors.amber.shade800,
                                     ),
                                   ),
                                 ),
+                              ],
                             ],
                           ),
                         ),
@@ -211,5 +265,12 @@ class HomeScreen extends StatelessWidget {
         ),
       ),
     );
+  }
+
+  int _starRating(int moves) {
+    if (moves <= 0) return 0;
+    if (moves <= 15) return 3;
+    if (moves <= 25) return 2;
+    return 1;
   }
 }

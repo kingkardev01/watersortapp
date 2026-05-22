@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:watersortapp/home_screen.dart';
-import 'package:watersortapp/main.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
