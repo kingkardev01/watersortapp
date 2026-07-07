@@ -1,12 +1,16 @@
 import 'dart:math';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:confetti/confetti.dart';
 import 'package:flame/components.dart';
 import 'package:flame/effects.dart';
 import 'package:flame/events.dart';
 import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:watersortapp/controllers/level_controller.dart';
+import 'package:watersortapp/controllers/settings_controller.dart';
+import 'package:watersortapp/models/bottle_style.dart';
 
 // ---------------------------------------------------------------------------
 // Sparkle particle for the bottle-sorted celebration
@@ -15,6 +19,7 @@ class SparkleParticle extends PositionComponent {
   final Color color;
   final double sparkleAngle;
   final double speed;
+  final bool isDroplet;
   double _life = 1.0;
   final double _size;
 
@@ -24,6 +29,7 @@ class SparkleParticle extends PositionComponent {
     required this.speed,
     required Vector2 position,
     double size = 5.0,
+    this.isDroplet = false,
   })  : _size = size,
         super(position: position);
 
@@ -44,6 +50,12 @@ class SparkleParticle extends PositionComponent {
       ..style = PaintingStyle.fill;
 
     final s = _size * _life;
+
+    if (isDroplet) {
+      canvas.drawCircle(Offset.zero, s * 0.6, paint);
+      return;
+    }
+
     final path = Path()
       ..moveTo(0, -s)
       ..lineTo(s * 0.35, -s * 0.35)
@@ -63,11 +75,13 @@ class SparkleParticle extends PositionComponent {
 // ---------------------------------------------------------------------------
 class CelebrationBurst extends PositionComponent {
   final Color bottleColor;
+  final double intensity;
   final _rng = Random();
 
   CelebrationBurst({
     required this.bottleColor,
     required Vector2 position,
+    this.intensity = 1.0,
   }) : super(position: position);
 
   @override
@@ -77,7 +91,7 @@ class CelebrationBurst extends PositionComponent {
   }
 
   void _spawnParticles() {
-    const int count = 22;
+    final int count = (22 * intensity).round();
     final List<Color> palette = [
       bottleColor,
       Colors.white,
@@ -88,9 +102,9 @@ class CelebrationBurst extends PositionComponent {
 
     for (int i = 0; i < count; i++) {
       final angle = (2 * pi / count) * i + _rng.nextDouble() * 0.4;
-      final speed = 60.0 + _rng.nextDouble() * 90.0;
+      final speed = (60.0 + _rng.nextDouble() * 90.0) * intensity;
       final color = palette[_rng.nextInt(palette.length)];
-      final size = 3.5 + _rng.nextDouble() * 4.0;
+      final size = (3.5 + _rng.nextDouble() * 4.0) * (1 + (intensity - 1) * 0.35);
 
       add(SparkleParticle(
         color: color,
@@ -98,12 +112,110 @@ class CelebrationBurst extends PositionComponent {
         speed: speed,
         position: Vector2.zero(),
         size: size,
+        isDroplet: _rng.nextDouble() < 0.35,
       ));
     }
 
     Future.delayed(const Duration(milliseconds: 900), () {
       if (isMounted) removeFromParent();
     });
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CelebrationShockwave: expanding ring pulse from the completed bottle
+// ---------------------------------------------------------------------------
+class CelebrationShockwave extends PositionComponent {
+  final Color color;
+  final double intensity;
+  double _time = 0;
+  static const double _duration = 0.5;
+
+  CelebrationShockwave({
+    required Vector2 position,
+    required this.color,
+    this.intensity = 1.0,
+  }) : super(position: position);
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+    if (_time >= _duration) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final double t = (_time / _duration).clamp(0.0, 1.0);
+    final double maxRadius = 34 * intensity;
+    final double radius = maxRadius * Curves.easeOut.transform(t);
+    final double opacity = (1 - t) * 0.55;
+
+    final ringPaint = Paint()
+      ..color = color.withOpacity(opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 3.0 * (1 - t * 0.6);
+    canvas.drawCircle(Offset.zero, radius, ringPaint);
+
+    final innerGlowPaint = Paint()
+      ..color = Colors.white.withOpacity(opacity * 0.5)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.drawCircle(Offset.zero, radius * 0.7, innerGlowPaint);
+  }
+}
+
+// ---------------------------------------------------------------------------
+// CelebrationBadge: small checkmark badge that pops above a completed bottle
+// ---------------------------------------------------------------------------
+class CelebrationBadge extends PositionComponent {
+  double _time = 0;
+  static const double _duration = 0.9;
+
+  CelebrationBadge({required Vector2 position}) : super(position: position);
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+    if (_time >= _duration) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final double t = (_time / _duration).clamp(0.0, 1.0);
+    final double scale =
+        t < 0.4 ? Curves.easeOutBack.transform(t / 0.4) : 1.0;
+    final double opacity =
+        t < 0.65 ? 1.0 : (1 - (t - 0.65) / 0.35).clamp(0.0, 1.0);
+    final double floatY = -16 * t;
+
+    canvas.save();
+    canvas.translate(0, floatY);
+    canvas.scale(scale);
+
+    final bgPaint = Paint()..color = Colors.amber.shade400.withOpacity(opacity);
+    canvas.drawCircle(Offset.zero, 13, bgPaint);
+
+    final ringPaint = Paint()
+      ..color = Colors.white.withOpacity(opacity * 0.9)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.6;
+    canvas.drawCircle(Offset.zero, 13, ringPaint);
+
+    final checkPaint = Paint()
+      ..color = Colors.white.withOpacity(opacity)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 2.4
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+
+    final checkPath = Path()
+      ..moveTo(-5, 0)
+      ..lineTo(-1.5, 4.5)
+      ..lineTo(6, -5);
+    canvas.drawPath(checkPath, checkPaint);
+
+    canvas.restore();
   }
 }
 
@@ -155,34 +267,77 @@ class BottleComponent extends PositionComponent with TapCallbacks {
   bool isHinted = false;
   bool isHintTarget = false;
   final Function(int) onTap;
+  final BottleStyle style;
   late Vector2 initialPosition;
 
   double waveTime = 0;
   bool isPouringWave = false;
 
+  /// Brief splash "kick" added to the surface wave right after a drop
+  /// lands, decaying back to the idle wave — gives the liquid a moment
+  /// of real impact instead of just continuously sloshing.
+  double _impactKick = 0;
+
   bool _isCelebrating = false;
   double _celebrateTime = 0;
+
+  // Continuous fill-level animation: instead of the liquid level jumping
+  // straight to its new height the instant a color unit transfers, it
+  // rises/recedes smoothly like a real stream filling or draining a glass.
+  late double _displayedFillLevel;
+  late List<Color> _renderColors;
+  static const double _fillAnimSpeed = 3.3; // capacity-units per second
 
   static const double bottleWidth = 58;
   static const double bottleHeight = 145;
   static const int maxCapacity = 4;
   static const double borderRadius = 22;
 
+  static const double _innerTop = 15;
+  static const double _innerBottom = bottleHeight - 2;
+
   BottleComponent({
     required this.index,
     required this.colors,
     required this.onTap,
     required Vector2 position,
+    this.style = BottleStyle.classicTube,
   }) : super(
           position: position,
           size: Vector2(bottleWidth, bottleHeight),
           anchor: Anchor.topLeft,
         ) {
     initialPosition = position.clone();
+    _displayedFillLevel = colors.length.toDouble();
+    _renderColors = List<Color>.from(colors);
+  }
+
+  /// Instantly syncs the displayed liquid to the underlying data —
+  /// used for undo/restart where the change should be immediate, not
+  /// animated like a normal pour.
+  void snapToData() {
+    _renderColors = List<Color>.from(colors);
+    _displayedFillLevel = colors.length.toDouble();
   }
 
   Vector2 get centerPosition => position + size / 2;
   Vector2 get mouthCenter => position + Vector2(width / 2, 0);
+
+  /// Local-space Y of the current liquid surface, used so splash effects
+  /// land exactly on top of the liquid rather than always at the mouth.
+  double get liquidSurfaceLocalY {
+    const double innerHeight = _innerBottom - _innerTop;
+    const double layerHeight = innerHeight / maxCapacity;
+    const double liquidBottomY = _innerBottom + 1;
+    return liquidBottomY - colors.length * layerHeight;
+  }
+
+  Vector2 get liquidSurfaceWorld =>
+      position + Vector2(width / 2, liquidSurfaceLocalY);
+
+  void triggerImpact() {
+    _impactKick = 1.0;
+  }
 
   void celebrate() {
     if (_isCelebrating) return;
@@ -236,6 +391,29 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     super.update(dt);
     waveTime += dt * 4.0;
     if (_isCelebrating) _celebrateTime += dt;
+    if (_impactKick > 0) {
+      _impactKick = (_impactKick - dt * 3.2).clamp(0.0, 1.0);
+    }
+
+    // Filling: sync new colors in immediately so their hue is known,
+    // then let the fill level animate up to reveal them.
+    if (colors.length > _renderColors.length) {
+      _renderColors = List<Color>.from(colors);
+    }
+
+    final double target = colors.length.toDouble();
+    if (_displayedFillLevel < target) {
+      _displayedFillLevel =
+          (_displayedFillLevel + dt * _fillAnimSpeed).clamp(0.0, target);
+    } else if (_displayedFillLevel > target) {
+      _displayedFillLevel =
+          (_displayedFillLevel - dt * _fillAnimSpeed).clamp(target, maxCapacity.toDouble());
+      // Draining: only trim the remembered top color once the level has
+      // visually receded down to the new (shorter) data length.
+      if (_displayedFillLevel <= target && _renderColors.length > colors.length) {
+        _renderColors = List<Color>.from(colors);
+      }
+    }
   }
 
   @override
@@ -253,6 +431,15 @@ class BottleComponent extends PositionComponent with TapCallbacks {
   @override
   void render(Canvas canvas) {
     super.render(canvas);
+
+    // Ambient ground shadow so the bottle feels grounded rather than floating
+    final groundShadowPaint = Paint()
+      ..color = Colors.black.withOpacity(0.32)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 7);
+    canvas.drawOval(
+      Rect.fromLTWH(width * 0.14, height - 5, width * 0.72, 11),
+      groundShadowPaint,
+    );
 
     // Celebration glow overlay
     if (_isCelebrating) {
@@ -298,8 +485,20 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       );
     }
 
+    final BottleStyleInfo styleInfo = bottleStyleInfo[style]!;
+    final Color glassTint = styleInfo.tint;
+
     final glassFillPaint = Paint()
-      ..color = Colors.white.withOpacity(0.09)
+      ..shader = LinearGradient(
+        begin: Alignment.topCenter,
+        end: Alignment.bottomCenter,
+        colors: [
+          glassTint.withOpacity(0.18),
+          glassTint.withOpacity(0.05),
+          glassTint.withOpacity(0.11),
+        ],
+        stops: const [0.0, 0.55, 1.0],
+      ).createShader(Rect.fromLTWH(0, 0, width, height))
       ..style = PaintingStyle.fill;
 
     Color borderColor;
@@ -340,7 +539,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     final double bodyRight = width - 4;
     final double bodyBottom = height;
     final double bodyWidth = bodyRight - bodyLeft;
-    final double bottomCurveHeight = 36;
+    final double bottomCurveHeight = styleInfo.bottomCurveHeight;
 
     final tubeFillPath = Path()
       ..moveTo(bodyLeft, bodyTop)
@@ -355,7 +554,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     final double innerTop = 15;
     final double innerRight = width - 7;
     final double innerBottom = height - 2;
-    final double innerBottomCurveHeight = 31;
+    final double innerBottomCurveHeight = styleInfo.innerBottomCurveHeight;
     final double innerWidth = innerRight - innerLeft;
     final double innerHeight = innerBottom - innerTop;
 
@@ -370,58 +569,172 @@ class BottleComponent extends PositionComponent with TapCallbacks {
 
     canvas.drawPath(tubeFillPath, glassFillPaint);
 
+    // Broad soft rim-light down the left side of the tube, like a
+    // directional light source catching the curve of real glass.
+    canvas.save();
+    canvas.clipPath(tubeFillPath);
+    final rimLightPaint = Paint()
+      ..shader = LinearGradient(
+        begin: Alignment.centerLeft,
+        end: Alignment.centerRight,
+        colors: [
+          Colors.white.withOpacity(0.16),
+          Colors.white.withOpacity(0.0),
+        ],
+        stops: const [0.0, 0.55],
+      ).createShader(Rect.fromLTWH(bodyLeft, bodyTop, bodyWidth, height));
+    canvas.drawRect(
+      Rect.fromLTWH(bodyLeft, bodyTop, bodyWidth * 0.55, height),
+      rimLightPaint,
+    );
+    canvas.restore();
+
+    // Inner wall-thickness contour, inset from the outer silhouette, so
+    // the glass reads as having real thickness along its whole body.
+    final wallContourPaint = Paint()
+      ..color = Colors.white.withOpacity(0.10)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawPath(
+      Path()
+        ..moveTo(bodyLeft + 3.5, bodyTop + 3)
+        ..lineTo(bodyLeft + 3.5, bodyBottom - bottomCurveHeight)
+        ..quadraticBezierTo(
+            bodyLeft + 3.5, bodyBottom - 3, width / 2, bodyBottom - 3)
+        ..quadraticBezierTo(bodyRight - 3.5, bodyBottom - 3, bodyRight - 3.5,
+            bodyBottom - bottomCurveHeight)
+        ..lineTo(bodyRight - 3.5, bodyTop + 3),
+      wallContourPaint,
+    );
+
     canvas.save();
     canvas.clipPath(innerLiquidPath);
 
     final double liquidBottomY = innerBottom + 1;
     final double layerHeight = innerHeight / maxCapacity;
 
-    for (int i = 0; i < colors.length; i++) {
-      final double topY = liquidBottomY - (i + 1) * layerHeight;
+    // Liquid is drawn from the animated _displayedFillLevel rather than
+    // the raw data length, so a rising/draining layer grows or shrinks
+    // smoothly instead of popping to full height in one frame.
+    final int fullLayers =
+        _displayedFillLevel.floor().clamp(0, _renderColors.length);
+    final double partialFraction = (_displayedFillLevel - fullLayers).clamp(0.0, 1.0);
+    final bool hasPartial =
+        partialFraction > 0.001 && fullLayers < _renderColors.length;
+    final int topIndex = hasPartial ? fullLayers : fullLayers - 1;
+
+    for (int i = 0; i < _renderColors.length; i++) {
+      double layerFraction;
+      if (i < fullLayers) {
+        layerFraction = 1.0;
+      } else if (i == fullLayers && hasPartial) {
+        layerFraction = partialFraction;
+      } else {
+        continue;
+      }
+
+      final double effectiveHeight = layerHeight * layerFraction;
       final double bottomY = liquidBottomY - i * layerHeight;
+      final double topY = bottomY - effectiveHeight;
 
       final colorPaint = Paint()
         ..shader = LinearGradient(
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            colors[i].withOpacity(0.84),
-            colors[i],
+            _renderColors[i].withOpacity(0.84),
+            _renderColors[i],
           ],
         ).createShader(
-          Rect.fromLTWH(innerLeft, topY, innerWidth, layerHeight),
+          Rect.fromLTWH(innerLeft, topY, innerWidth, max(effectiveHeight, 1.0)),
         );
 
-      final bool isTopLayer = i == colors.length - 1;
+      final bool isTopLayer = i == topIndex;
       final path = Path();
 
       if (isTopLayer) {
-        final double wavePower = isPouringWave ? 6.0 : 2.0;
-        final double wave1 = sin(waveTime) * wavePower;
-        final double wave2 = sin(waveTime + 1.8) * wavePower;
+        final double wavePower =
+            (isPouringWave ? 6.0 : 2.0) + _impactKick * 7.0;
+        final double wave1 = sin(waveTime) * wavePower +
+            sin(waveTime * 2.3) * wavePower * 0.2;
+        final double wave2 = sin(waveTime + 1.8) * wavePower +
+            sin(waveTime * 2.1 + 0.6) * wavePower * 0.2;
+        // Meniscus: water always climbs slightly at the glass walls,
+        // even at rest, instead of presenting a perfectly flat surface.
+        const double meniscus = 3.0;
 
-        path.moveTo(innerLeft, topY + wave1);
+        path.moveTo(innerLeft, topY + wave1 - meniscus);
+        path.quadraticBezierTo(
+          innerLeft + innerWidth * 0.16,
+          topY + wave1 - meniscus * 0.3,
+          innerLeft + innerWidth * 0.16,
+          topY + wave1 * 0.6,
+        );
         path.quadraticBezierTo(
           innerLeft + innerWidth * 0.50,
           topY - wavePower,
+          innerRight - innerWidth * 0.16,
+          topY + wave2 * 0.6,
+        );
+        path.quadraticBezierTo(
+          innerRight - innerWidth * 0.16,
+          topY + wave2 - meniscus * 0.3,
           innerRight,
-          topY + wave2,
+          topY + wave2 - meniscus,
         );
         path.lineTo(innerRight, bottomY + 2);
         path.lineTo(innerLeft, bottomY + 2);
         path.close();
       } else {
         path.addRect(
-          Rect.fromLTWH(innerLeft, topY, innerWidth, layerHeight + 2),
+          Rect.fromLTWH(innerLeft, topY, innerWidth, effectiveHeight + 2),
         );
       }
 
       canvas.drawPath(path, colorPaint);
+
+      // Subtle bright interface line where this layer meets the one above,
+      // so stacked colors read as distinct liquid bodies, not flat paint.
+      if (!isTopLayer) {
+        final interfacePaint = Paint()
+          ..color = Colors.white.withOpacity(0.16)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 1.0;
+        canvas.drawLine(
+          Offset(innerLeft, topY),
+          Offset(innerRight, topY),
+          interfacePaint,
+        );
+      }
     }
 
-    if (colors.isNotEmpty) {
+    // Slow-drifting caustic sheen inside the liquid for a subtle shimmer.
+    if (_renderColors.isNotEmpty) {
+      final double causticX =
+          innerLeft + innerWidth * 0.5 + sin(waveTime * 0.28) * innerWidth * 0.32;
+      final causticPaint = Paint()
+        ..color = Colors.white.withOpacity(0.05)
+        ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 9);
+      canvas.save();
+      canvas.translate(causticX, innerTop + innerHeight * 0.5);
+      canvas.rotate(0.3);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromCenter(
+            center: Offset.zero,
+            width: 9,
+            height: innerHeight * 1.2,
+          ),
+          const Radius.circular(8),
+        ),
+        causticPaint,
+      );
+      canvas.restore();
+    }
+
+    if (_renderColors.isNotEmpty) {
       final bottomDepthPaint = Paint()
-        ..color = colors.first.withOpacity(0.24)
+        ..color = _renderColors.first.withOpacity(0.24)
         ..style = PaintingStyle.fill;
 
       canvas.drawOval(
@@ -447,6 +760,44 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       ),
       sideShadowPaint,
     );
+
+    // Glass specular streaks — soft angled light reflections over the
+    // whole tube (glass in front of the liquid), so it reads as glass
+    // rather than a flat painted outline.
+    canvas.save();
+    canvas.clipPath(tubeFillPath);
+
+    final specular1Paint = Paint()
+      ..color = Colors.white.withOpacity(0.11)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 6);
+    canvas.save();
+    canvas.translate(width * 0.30, height * 0.42);
+    canvas.rotate(-0.16);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: 7, height: height * 0.6),
+        const Radius.circular(6),
+      ),
+      specular1Paint,
+    );
+    canvas.restore();
+
+    final specular2Paint = Paint()
+      ..color = Colors.white.withOpacity(0.06)
+      ..maskFilter = const MaskFilter.blur(BlurStyle.normal, 5);
+    canvas.save();
+    canvas.translate(width * 0.70, height * 0.5);
+    canvas.rotate(0.12);
+    canvas.drawRRect(
+      RRect.fromRectAndRadius(
+        Rect.fromCenter(center: Offset.zero, width: 5, height: height * 0.42),
+        const Radius.circular(5),
+      ),
+      specular2Paint,
+    );
+    canvas.restore();
+
+    canvas.restore();
 
     final borderPath = Path()
       ..moveTo(bodyLeft, bodyTop + 3)
@@ -496,6 +847,13 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     canvas.drawOval(mouthInnerRect, mouthInnerPaint);
     canvas.drawOval(mouthOuterRect, mouthBorderPaint);
 
+    // Inner rim stroke to suggest the glass has real thickness at the neck.
+    final mouthInnerRimPaint = Paint()
+      ..color = Colors.white.withOpacity(0.20)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.0;
+    canvas.drawOval(mouthInnerRect.deflate(1.6), mouthInnerRimPaint);
+
     canvas.drawArc(
       Rect.fromLTWH(bodyLeft + 4, bodyTop - 5, bodyWidth - 8, 11),
       pi * 1.03,
@@ -528,6 +886,8 @@ class WaterStreamComponent extends PositionComponent {
   final Vector2 target;
   double time = 0;
 
+  static const List<double> _bubbleOffsets = [0.0, 0.25, 0.5, 0.75];
+
   WaterStreamComponent({
     required this.color,
     required Vector2 position,
@@ -540,43 +900,147 @@ class WaterStreamComponent extends PositionComponent {
     time += dt * 8;
   }
 
+  Offset _quadPoint(Offset p0, Offset p1, Offset p2, double t) {
+    final double mt = 1 - t;
+    return Offset(
+      mt * mt * p0.dx + 2 * mt * t * p1.dx + t * t * p2.dx,
+      mt * mt * p0.dy + 2 * mt * t * p1.dy + t * t * p2.dy,
+    );
+  }
+
   @override
   void render(Canvas canvas) {
     final diff = target - position;
-
-    final paint = Paint()
-      ..color = color.withOpacity(0.9)
-      ..strokeWidth = 6
-      ..strokeCap = StrokeCap.round
-      ..style = PaintingStyle.stroke;
-
-    final path = Path()..moveTo(0, 0);
     final waveOffset = sin(time) * 3;
 
-    path.quadraticBezierTo(
-      diff.x * 0.45 + waveOffset,
-      diff.y * -0.08,
-      diff.x,
-      diff.y,
+    final Offset p0 = Offset.zero;
+    final Offset control = Offset(diff.x * 0.45 + waveOffset, diff.y * -0.08);
+    final Offset p2 = Offset(diff.x, diff.y);
+
+    // Sample the pour curve so we can build a tapering ribbon instead of
+    // a single thin wire-like stroke — reads much closer to real water.
+    const int steps = 10;
+    final List<Offset> samples = [
+      for (int i = 0; i <= steps; i++) _quadPoint(p0, control, p2, i / steps),
+    ];
+
+    final List<Offset> left = [];
+    final List<Offset> right = [];
+    for (int i = 0; i < samples.length; i++) {
+      final double t = i / (samples.length - 1);
+      final double halfWidth = 4.6 - t * 2.0;
+      final Offset dir = i < samples.length - 1
+          ? samples[i + 1] - samples[i]
+          : samples[i] - samples[i - 1];
+      final double len = dir.distance == 0 ? 1 : dir.distance;
+      final Offset normal = Offset(-dir.dy / len, dir.dx / len);
+      left.add(samples[i] + normal * halfWidth);
+      right.add(samples[i] - normal * halfWidth);
+    }
+
+    final ribbonPath = Path()..moveTo(left.first.dx, left.first.dy);
+    for (final p in left.skip(1)) {
+      ribbonPath.lineTo(p.dx, p.dy);
+    }
+    for (final p in right.reversed) {
+      ribbonPath.lineTo(p.dx, p.dy);
+    }
+    ribbonPath.close();
+
+    final ribbonPaint = Paint()
+      ..shader = LinearGradient(
+        colors: [color.withOpacity(0.55), color.withOpacity(0.92)],
+      ).createShader(Rect.fromPoints(p0, p2));
+    canvas.drawPath(ribbonPath, ribbonPaint);
+
+    // Glossy highlight running down the center of the stream.
+    final glossPath = Path()..moveTo(0, 0);
+    glossPath.quadraticBezierTo(control.dx, control.dy, p2.dx, p2.dy);
+    final glossPaint = Paint()
+      ..color = Colors.white.withOpacity(0.35)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.3
+      ..strokeCap = StrokeCap.round;
+    canvas.drawPath(glossPath, glossPaint);
+
+    // Small bubbles riding the stream toward the target bottle.
+    for (final offset in _bubbleOffsets) {
+      final double t = (time * 0.12 + offset) % 1.0;
+      final Offset p = _quadPoint(p0, control, p2, t);
+      final double fade = sin(t * pi).clamp(0.0, 1.0);
+      final bubblePaint = Paint()..color = Colors.white.withOpacity(0.55 * fade);
+      canvas.drawCircle(p, 1.0 + fade * 1.3, bubblePaint);
+    }
+  }
+}
+
+// ---------------------------------------------------------------------------
+// SplashRipple — brief expanding ring where poured liquid lands
+// ---------------------------------------------------------------------------
+class SplashRipple extends PositionComponent {
+  final Color color;
+  double _time = 0;
+
+  SplashRipple({required Vector2 position, required this.color})
+      : super(position: position);
+
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt * 2.6;
+    if (_time >= 1) removeFromParent();
+  }
+
+  @override
+  void render(Canvas canvas) {
+    final double t = _time.clamp(0.0, 1.0);
+    final double radiusX = 4 + t * 13;
+    final double radiusY = radiusX * 0.4;
+    final paint = Paint()
+      ..color = color.withOpacity((1 - t) * 0.5)
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = 1.5;
+    canvas.drawOval(
+      Rect.fromCenter(center: Offset.zero, width: radiusX * 2, height: radiusY * 2),
+      paint,
     );
+  }
+}
 
-    canvas.drawPath(path, paint);
+// ---------------------------------------------------------------------------
+// SplashDroplets — a few tiny droplets that pop up and fall back at the
+// moment poured liquid hits the surface, like a real splash.
+// ---------------------------------------------------------------------------
+class SplashDroplets extends PositionComponent {
+  final Color color;
+  double _time = 0;
+  final _rng = Random();
+  late final List<Offset> _launchVelocity;
 
-    final dropPaint = Paint()
-      ..color = color.withOpacity(0.70)
-      ..style = PaintingStyle.fill;
+  SplashDroplets({required Vector2 position, required this.color})
+      : super(position: position) {
+    _launchVelocity = List.generate(4, (i) {
+      final double angle = -pi / 2 + (_rng.nextDouble() - 0.5) * 1.6;
+      final double speed = 30 + _rng.nextDouble() * 30;
+      return Offset(cos(angle) * speed, sin(angle) * speed);
+    });
+  }
 
-    canvas.drawCircle(
-      Offset(diff.x * 0.52 + sin(time) * 3, diff.y * 0.45),
-      2.8,
-      dropPaint,
-    );
+  @override
+  void update(double dt) {
+    super.update(dt);
+    _time += dt;
+    if (_time >= 0.45) removeFromParent();
+  }
 
-    canvas.drawCircle(
-      Offset(diff.x * 0.77 + cos(time) * 3, diff.y * 0.72),
-      2,
-      dropPaint,
-    );
+  @override
+  void render(Canvas canvas) {
+    final paint = Paint()..color = color.withOpacity((1 - _time / 0.45) * 0.85);
+    for (final v in _launchVelocity) {
+      final double x = v.dx * _time;
+      final double y = v.dy * _time + 220 * _time * _time; // gravity fall
+      canvas.drawCircle(Offset(x, y), 1.6, paint);
+    }
   }
 }
 
@@ -596,6 +1060,7 @@ class WaterSortGame extends FlameGame {
   final Function(int) onMoveUpdate;
   final VoidCallback onWin;
   final VoidCallback? onHintUsed;
+  final VoidCallback? onNoMoves;
 
   late List<List<Color>> bottlesData;
   List<BottleComponent> bottleComponents = [];
@@ -617,6 +1082,7 @@ class WaterSortGame extends FlameGame {
     required this.onMoveUpdate,
     required this.onWin,
     this.onHintUsed,
+    this.onNoMoves,
   });
 
   @override
@@ -625,6 +1091,7 @@ class WaterSortGame extends FlameGame {
     await _audioPlayer.setSource(AssetSource('audio/water_sound.mp3'));
     _initializeGameData();
     _createBottleComponents();
+    Future.delayed(const Duration(milliseconds: 300), _checkDeadlock);
   }
 
   @override
@@ -634,11 +1101,31 @@ class WaterSortGame extends FlameGame {
   }
 
   Future<void> _playWaterSound() async {
+    if (!Get.find<SettingsController>().soundEnabled.value) return;
     try {
       await _audioPlayer.stop();
       await _audioPlayer.play(AssetSource('audio/water_sound.mp3'));
     } catch (_) {}
   }
+
+  void _haptic(void Function() trigger) {
+    if (Get.find<SettingsController>().hapticsEnabled.value) trigger();
+  }
+
+  /// Number of liquid colors for a given level — difficulty ramps up as
+  /// the player progresses through the 100 levels.
+  static int numColorsForLevel(int level) {
+    if (level <= 10) return 4;
+    if (level <= 25) return 5;
+    if (level <= 50) return 6;
+    if (level <= 75) return 7;
+    return 8;
+  }
+
+  /// Empty bottles available to sort into — kept constant so higher
+  /// levels stay solvable-in-practice while still getting harder via
+  /// more colors packed into the same amount of breathing room.
+  static const int _emptyBottles = 2;
 
   void _initializeGameData() {
     final List<Color> palette = [
@@ -648,10 +1135,13 @@ class WaterSortGame extends FlameGame {
       Colors.yellow.shade600,
       Colors.orange.shade600,
       Colors.purple.shade600,
+      Colors.teal.shade600,
+      Colors.pink.shade400,
     ];
 
-    const int numColors = 6;
+    final int numColors = numColorsForLevel(level);
     final List<Color> gameColors = palette.sublist(0, numColors);
+    final int totalBottles = numColors + _emptyBottles;
 
     final List<Color> allColors = [];
     for (final color in gameColors) {
@@ -662,7 +1152,7 @@ class WaterSortGame extends FlameGame {
 
     allColors.shuffle();
 
-    bottlesData = List.generate(8, (i) => []);
+    bottlesData = List.generate(totalBottles, (i) => []);
 
     for (int i = 0; i < numColors; i++) {
       bottlesData[i] = allColors.sublist(
@@ -674,16 +1164,45 @@ class WaterSortGame extends FlameGame {
     _undoStack.clear();
   }
 
+  /// Splits [n] bottles into visually balanced rows (max 3 per row up to
+  /// 6 bottles, max 4 per row beyond that) so higher levels with more
+  /// colors still lay out cleanly.
+  List<int> _computeRowLayout(int n) {
+    final int maxPerRow = n <= 6 ? 3 : 4;
+    final int numRows = (n / maxPerRow).ceil();
+    final int base = n ~/ numRows;
+    final int extra = n % numRows;
+    return List.generate(numRows, (i) => base + (i < extra ? 1 : 0));
+  }
+
+  /// Shrinks bottle spacing when a row would otherwise overflow the
+  /// available canvas width (levels with 4+ bottles per row on narrow
+  /// screens).
+  double _computeSpacingX(int rowSize) {
+    const double defaultSpacing = 38;
+    const double sideMargin = 24;
+    final double available = size.x - sideMargin * 2;
+    final double neededWidth = rowSize * BottleComponent.bottleWidth +
+        (rowSize - 1) * defaultSpacing;
+
+    if (neededWidth <= available || rowSize <= 1) return defaultSpacing;
+
+    final double fitted =
+        (available - rowSize * BottleComponent.bottleWidth) / (rowSize - 1);
+    return fitted.clamp(10.0, defaultSpacing);
+  }
+
   void _createBottleComponents() {
-    const double spacingX = 38;
     const double spacingY = 50;
 
-    final layout = [3, 3, 2];
+    final BottleStyle style = Get.find<SettingsController>().bottleStyle.value;
+    final layout = _computeRowLayout(bottlesData.length);
     int bottleIdx = 0;
 
     double currentCenterY = BottleComponent.bottleHeight / 2 + 50;
 
     for (final rowSize in layout) {
+      final double spacingX = _computeSpacingX(rowSize);
       final double rowWidth =
           (rowSize * BottleComponent.bottleWidth) + ((rowSize - 1) * spacingX);
 
@@ -701,6 +1220,7 @@ class WaterSortGame extends FlameGame {
           colors: bottlesData[bottleIdx],
           position: topLeftPosition,
           onTap: _handleBottleTap,
+          style: style,
         );
 
         bottleComponents.add(bottle);
@@ -747,6 +1267,26 @@ class WaterSortGame extends FlameGame {
     }
   }
 
+  bool _hasAnyValidMove() {
+    for (int from = 0; from < bottlesData.length; from++) {
+      if (bottlesData[from].isEmpty) continue;
+      if (_isCompletedBottle(from)) continue;
+      for (int to = 0; to < bottlesData.length; to++) {
+        if (from == to) continue;
+        if (_isCompletedBottle(to)) continue;
+        if (_isValidMove(from, to)) return true;
+      }
+    }
+    return false;
+  }
+
+  void _checkDeadlock() {
+    if (_checkWin()) return;
+    if (!_hasAnyValidMove()) {
+      onNoMoves?.call();
+    }
+  }
+
   void _clearHint() {
     if (_hintFrom != null && _hintFrom! < bottleComponents.length) {
       bottleComponents[_hintFrom!].isHinted = false;
@@ -772,6 +1312,7 @@ class WaterSortGame extends FlameGame {
       // so the Flame render picks up the restored state immediately
       if (i < bottleComponents.length) {
         bottleComponents[i].colors = bottlesData[i];
+        bottleComponents[i].snapToData();
       }
     }
     onMoveUpdate(-1); // decrement move count
@@ -785,6 +1326,7 @@ class WaterSortGame extends FlameGame {
 
     if (selectedIndex == null) {
       if (bottlesData[index].isNotEmpty) {
+        _haptic(HapticFeedback.selectionClick);
         _isAnimating = true;
         selectedIndex = index;
 
@@ -810,10 +1352,49 @@ class WaterSortGame extends FlameGame {
         } else if (_isValidMove(selectedIndex!, index)) {
           _tryPour(selectedIndex!, index);
         } else {
+          _shakeBottle(index);
           _deselect();
         }
       }
     }
+  }
+
+  void _shakeBottle(int index) {
+    _haptic(HapticFeedback.mediumImpact);
+    final bottle = bottleComponents[index];
+    final Vector2 basePos = bottle.position.clone();
+
+    bottle.add(
+      MoveEffect.by(
+        Vector2(8, 0),
+        EffectController(duration: 0.05, curve: Curves.easeInOut),
+        onComplete: () {
+          bottle.add(
+            MoveEffect.by(
+              Vector2(-16, 0),
+              EffectController(duration: 0.08, curve: Curves.easeInOut),
+              onComplete: () {
+                bottle.add(
+                  MoveEffect.by(
+                    Vector2(16, 0),
+                    EffectController(duration: 0.08, curve: Curves.easeInOut),
+                    onComplete: () {
+                      bottle.add(
+                        MoveEffect.to(
+                          basePos,
+                          EffectController(
+                              duration: 0.05, curve: Curves.easeInOut),
+                        ),
+                      );
+                    },
+                  ),
+                );
+              },
+            ),
+          );
+        },
+      ),
+    );
   }
 
   bool _isValidMove(int from, int to) {
@@ -848,17 +1429,42 @@ class WaterSortGame extends FlameGame {
     );
   }
 
+  // ---- Combo tracking: back-to-back bottle completions escalate the
+  // celebration intensity, rewarding chained clears within one pour. ----
+  int _comboStreak = 0;
+  int _comboGeneration = 0;
+
+  double _registerCombo() {
+    _comboStreak++;
+    final double intensity = (1 + (_comboStreak - 1) * 0.28).clamp(1.0, 2.2);
+    final int myGeneration = ++_comboGeneration;
+    Future.delayed(const Duration(milliseconds: 1200), () {
+      if (_comboGeneration == myGeneration) _comboStreak = 0;
+    });
+    return intensity;
+  }
+
   void _celebrateBottle(int index) {
+    final double intensity = _registerCombo();
+
     final bottle = bottleComponents[index];
     bottle.celebrate();
 
     final burstPosition = bottle.initialPosition +
         Vector2(BottleComponent.bottleWidth / 2, 0);
-    final burst = CelebrationBurst(
-      bottleColor: bottlesData[index].first,
+    final bottleColor = bottlesData[index].first;
+
+    add(CelebrationBurst(
+      bottleColor: bottleColor,
       position: burstPosition,
-    );
-    add(burst);
+      intensity: intensity,
+    ));
+    add(CelebrationShockwave(
+      position: burstPosition,
+      color: bottleColor,
+      intensity: intensity,
+    ));
+    add(CelebrationBadge(position: burstPosition + Vector2(0, -10)));
   }
 
   Future<void> _tryPour(int from, int to) async {
@@ -933,7 +1539,18 @@ class WaterSortGame extends FlameGame {
                           const Duration(milliseconds: 420),
                         );
                         if (bottlesData[from].isNotEmpty) {
-                          bottlesData[to].add(bottlesData[from].removeLast());
+                          final pouredColor = bottlesData[from].removeLast();
+                          bottlesData[to].add(pouredColor);
+                          toBottle.triggerImpact();
+                          final landingSpot = toBottle.liquidSurfaceWorld;
+                          add(SplashRipple(
+                            position: landingSpot,
+                            color: pouredColor,
+                          ));
+                          add(SplashDroplets(
+                            position: landingSpot,
+                            color: pouredColor,
+                          ));
                         }
                       }
 
@@ -983,10 +1600,13 @@ class WaterSortGame extends FlameGame {
                                         }
 
                                         if (_checkWin()) {
+                                          _haptic(HapticFeedback.heavyImpact);
                                           Future.delayed(
                                             const Duration(milliseconds: 700),
                                             onWin,
                                           );
+                                        } else {
+                                          _checkDeadlock();
                                         }
                                       },
                                     ),
@@ -1027,6 +1647,8 @@ class WaterSortGame extends FlameGame {
 
     selectedIndex = null;
     _isAnimating = false;
+
+    Future.delayed(const Duration(milliseconds: 300), _checkDeadlock);
   }
 }
 
@@ -1055,6 +1677,8 @@ class _GameScreenState extends State<GameScreen>
   late AnimationController _timerTick;
   bool _isPaused = false;
 
+  late ConfettiController _confettiController;
+
   @override
   void initState() {
     super.initState();
@@ -1070,6 +1694,9 @@ class _GameScreenState extends State<GameScreen>
       if (mounted && !_isPaused) setState(() {});
     });
 
+    _confettiController =
+        ConfettiController(duration: const Duration(seconds: 2));
+
     _game = WaterSortGame(
       level: widget.level,
       onMoveUpdate: (delta) {
@@ -1078,6 +1705,7 @@ class _GameScreenState extends State<GameScreen>
         });
       },
       onWin: _handleWin,
+      onNoMoves: _handleNoMoves,
     );
   }
 
@@ -1085,6 +1713,7 @@ class _GameScreenState extends State<GameScreen>
   void dispose() {
     _timerTick.dispose();
     _stopwatch.stop();
+    _confettiController.dispose();
     super.dispose();
   }
 
@@ -1105,12 +1734,93 @@ class _GameScreenState extends State<GameScreen>
   void _handleWin() {
     _stopwatch.stop();
     _timerTick.stop();
+    _confettiController.play();
 
     // Save best score
     final levelController = Get.find<LevelController>();
     levelController.saveBestScore(widget.level, _moveCount);
 
     _showSuccessDialog();
+  }
+
+  void _handleNoMoves() {
+    if (!mounted) return;
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) {
+        return AlertDialog(
+          backgroundColor: Colors.white,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(24),
+          ),
+          title: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.sentiment_dissatisfied_rounded,
+                  color: Colors.orange.shade600, size: 48),
+              const SizedBox(height: 8),
+              const Text(
+                'No Moves Left',
+                style: TextStyle(fontWeight: FontWeight.bold, fontSize: 22),
+              ),
+            ],
+          ),
+          content: const Text(
+            "There's no valid pour left on the board. Undo your last move or restart the level.",
+            textAlign: TextAlign.center,
+          ),
+          actions: [
+            Row(
+              children: [
+                if (_game.canUndo)
+                  Expanded(
+                    child: OutlinedButton.icon(
+                      onPressed: () {
+                        Navigator.of(context).pop();
+                        _game.undo();
+                      },
+                      icon: const Icon(Icons.undo_rounded),
+                      label: const Text('Undo'),
+                      style: OutlinedButton.styleFrom(
+                        foregroundColor: Colors.blue.shade700,
+                        side: BorderSide(color: Colors.blue.shade300),
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                      ),
+                    ),
+                  ),
+                if (_game.canUndo) const SizedBox(width: 10),
+                Expanded(
+                  child: ElevatedButton.icon(
+                    onPressed: () {
+                      Navigator.of(context).pop();
+                      setState(() {
+                        _moveCount = 0;
+                        _stopwatch.reset();
+                        _stopwatch.start();
+                        _isPaused = false;
+                        _game.reset();
+                      });
+                    },
+                    icon: const Icon(Icons.refresh),
+                    label: const Text('Restart'),
+                    style: ElevatedButton.styleFrom(
+                      backgroundColor: Colors.blue.shade600,
+                      foregroundColor: Colors.white,
+                      shape: RoundedRectangleBorder(
+                        borderRadius: BorderRadius.circular(12),
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        );
+      },
+    );
   }
 
   void _togglePause() {
@@ -1438,6 +2148,27 @@ class _GameScreenState extends State<GameScreen>
                   ),
                 ),
               ),
+            // Win celebration confetti
+            Align(
+              alignment: Alignment.topCenter,
+              child: ConfettiWidget(
+                confettiController: _confettiController,
+                blastDirectionality: BlastDirectionality.explosive,
+                shouldLoop: false,
+                numberOfParticles: 28,
+                maxBlastForce: 22,
+                minBlastForce: 8,
+                gravity: 0.35,
+                colors: const [
+                  Colors.blue,
+                  Colors.red,
+                  Colors.green,
+                  Colors.orange,
+                  Colors.purple,
+                  Colors.amber,
+                ],
+              ),
+            ),
           ],
         ),
       ),

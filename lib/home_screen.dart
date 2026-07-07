@@ -2,6 +2,9 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:watersortapp/controllers/level_controller.dart';
 import 'package:watersortapp/game_screen.dart';
+import 'package:watersortapp/settings_screen.dart';
+import 'package:watersortapp/widgets/staggered_fade_in.dart';
+import 'package:watersortapp/widgets/tap_scale.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -22,6 +25,16 @@ class HomeScreen extends StatelessWidget {
         backgroundColor: Colors.blue.shade600,
         foregroundColor: Colors.white,
         elevation: 0,
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.settings_rounded),
+            tooltip: 'Settings',
+            onPressed: () => Get.to(
+              () => const SettingsScreen(),
+              transition: Transition.rightToLeftWithFade,
+            ),
+          ),
+        ],
       ),
       body: Container(
         decoration: BoxDecoration(
@@ -80,19 +93,14 @@ class HomeScreen extends StatelessWidget {
                     int bestScore = levelController.getBestScore(level);
                     int stars = _starRating(bestScore);
 
-                    return AnimatedContainer(
-                      duration: const Duration(milliseconds: 300),
-                      curve: Curves.easeInOut,
-                      child: InkWell(
-                        borderRadius: BorderRadius.circular(20),
+                    return StaggeredFadeIn(
+                      delay: Duration(milliseconds: (index % 20) * 25),
+                      child: TapScale(
                         onTap: isUnlocked
                             ? () async {
-                                final result = await Navigator.push(
-                                  context,
-                                  MaterialPageRoute(
-                                    builder: (context) =>
-                                        GameScreen(level: level),
-                                  ),
+                                final result = await Get.to(
+                                  () => GameScreen(level: level),
+                                  transition: Transition.rightToLeftWithFade,
                                 );
                                 if (result == true &&
                                     level ==

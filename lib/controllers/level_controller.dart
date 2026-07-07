@@ -55,6 +55,14 @@ class LevelController extends GetxController {
     }
   }
 
+  /// Wipes all saved progress — unlocked levels and best scores.
+  void resetProgress() {
+    unlockedLevels.value = 1;
+    bestScores.clear();
+    box.remove('unlockedLevels');
+    box.remove('bestScores');
+  }
+
   void _loadBestScores() {
     final Map<dynamic, dynamic>? stored = box.read('bestScores');
     if (stored != null) {
