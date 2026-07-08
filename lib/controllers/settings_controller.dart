@@ -7,13 +7,19 @@ class SettingsController extends GetxController {
 
   final RxBool soundEnabled = true.obs;
   final RxBool hapticsEnabled = true.obs;
+  final RxBool largeText = false.obs;
   final Rx<BottleStyle> bottleStyle = BottleStyle.classicTube.obs;
+
+  /// App-wide text scale applied via MediaQuery — larger for players who
+  /// benefit from bigger, easier-to-read text (kids and seniors).
+  double get textScaleFactor => largeText.value ? 1.2 : 1.0;
 
   @override
   void onInit() {
     super.onInit();
     soundEnabled.value = box.read('soundEnabled') ?? true;
     hapticsEnabled.value = box.read('hapticsEnabled') ?? true;
+    largeText.value = box.read('largeText') ?? false;
 
     final int? savedStyleIndex = box.read('bottleStyle');
     if (savedStyleIndex != null &&
@@ -31,6 +37,11 @@ class SettingsController extends GetxController {
   void toggleHaptics(bool value) {
     hapticsEnabled.value = value;
     box.write('hapticsEnabled', value);
+  }
+
+  void toggleLargeText(bool value) {
+    largeText.value = value;
+    box.write('largeText', value);
   }
 
   void setBottleStyle(BottleStyle style) {

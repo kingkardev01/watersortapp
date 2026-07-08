@@ -22,6 +22,11 @@ class AppColors {
   ];
 
   static const Color gameBackground = Color(0xFF0D1424);
+  static const List<Color> gameBackgroundGradient = [
+    Color(0xFF0D1424),
+    Color(0xFF16213A),
+    Color(0xFF0D1424),
+  ];
 
   static const Color cardLocked = Color(0xFFE3E7ED);
   static const List<Color> cardCompleted = [
@@ -36,6 +41,12 @@ class AppColors {
     Color(0xFFEAF2FF),
     Color(0xFFFFFFFF),
   ];
+
+  // Higher-contrast tones for the locked level state — easier to read at
+  // a glance for players who rely on strong contrast (kids and seniors).
+  static const Color lockedIcon = Color(0xFF5A6472);
+  static const Color lockedText = Color(0xFF3E4652);
+  static const Color lockedBorder = Color(0xFF8D96A3);
 }
 
 /// Central playful typography shared across screens.

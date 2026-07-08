@@ -3,8 +3,13 @@ import 'package:get/get.dart';
 import 'package:watersortapp/controllers/level_controller.dart';
 import 'package:watersortapp/controllers/profile_controller.dart';
 import 'package:watersortapp/controllers/settings_controller.dart';
+import 'package:watersortapp/controllers/shop_controller.dart';
+import 'package:watersortapp/how_to_play_screen.dart';
 import 'package:watersortapp/models/bottle_style.dart';
+import 'package:watersortapp/shop_screen.dart';
 import 'package:watersortapp/theme/app_theme.dart';
+import 'package:watersortapp/widgets/animated_water_background.dart';
+import 'package:watersortapp/widgets/bottle_glass_preview.dart';
 
 class SettingsScreen extends StatelessWidget {
   const SettingsScreen({super.key});
@@ -14,6 +19,7 @@ class SettingsScreen extends StatelessWidget {
     final settings = Get.find<SettingsController>();
     final levelController = Get.find<LevelController>();
     final profile = Get.find<ProfileController>();
+    final shop = Get.find<ShopController>();
 
     return Scaffold(
       appBar: AppBar(
@@ -22,14 +28,11 @@ class SettingsScreen extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 0,
       ),
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topCenter,
-            end: Alignment.bottomCenter,
-            colors: AppColors.homeBackground,
-          ),
-        ),
+      body: AnimatedWaterBackground(
+        gradientColors: AppColors.homeBackground,
+        bubbleColor: AppColors.primary,
+        bubbleCount: 12,
+        maxBubbleOpacity: 0.08,
         child: ListView(
           padding: const EdgeInsets.all(20),
           children: [
@@ -147,49 +150,110 @@ class SettingsScreen extends StatelessWidget {
                       subtitle: const Text('Vibration on tap and win'),
                       secondary: const Icon(Icons.vibration_rounded),
                     ),
+                    const Divider(height: 1),
+                    SwitchListTile(
+                      value: settings.largeText.value,
+                      onChanged: settings.toggleLargeText,
+                      activeThumbColor: Colors.blue.shade600,
+                      title: const Text('Large Text & Buttons'),
+                      subtitle: const Text(
+                          'Bigger text app-wide — easier reading for kids and seniors'),
+                      secondary: const Icon(Icons.text_increase_rounded),
+                    ),
                   ],
                 ),
               ),
             ),
             const SizedBox(height: 28),
-            Text('Glass Style', style: AppTextStyles.heading(fontSize: 18)),
+            Text('Help', style: AppTextStyles.heading(fontSize: 18)),
             const SizedBox(height: 8),
-            Obx(
-              () => Row(
-                children: BottleStyle.values.map((s) {
+            _SettingsCard(
+              child: ListTile(
+                leading: Icon(Icons.help_outline_rounded,
+                    color: Colors.blue.shade600),
+                title: const Text('How to Play'),
+                subtitle: const Text('A quick refresher on the rules'),
+                trailing: const Icon(Icons.chevron_right_rounded),
+                onTap: () => Get.to(
+                  () => const HowToPlayScreen(),
+                  transition: Transition.rightToLeftWithFade,
+                ),
+              ),
+            ),
+            const SizedBox(height: 28),
+            Text('Glass Style', style: AppTextStyles.heading(fontSize: 18)),
+            const SizedBox(height: 4),
+            Text(
+              'Live preview — rendered the same way as in-game bottles',
+              style: TextStyle(fontSize: 12, color: Colors.grey.shade600),
+            ),
+            const SizedBox(height: 10),
+            Obx(() {
+              final ownedStyles =
+                  BottleStyle.values.where(shop.isOwned).toList();
+              final int lockedCount =
+                  BottleStyle.values.length - ownedStyles.length;
+              return Row(
+                children: [
+                  ...ownedStyles.map((s) {
                   final info = bottleStyleInfo[s]!;
                   final bool selected = settings.bottleStyle.value == s;
                   return Expanded(
                     child: Padding(
                       padding: const EdgeInsets.symmetric(horizontal: 4),
                       child: InkWell(
-                        borderRadius: BorderRadius.circular(14),
+                        borderRadius: BorderRadius.circular(16),
                         onTap: () => settings.setBottleStyle(s),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(vertical: 14),
+                        child: AnimatedContainer(
+                          duration: const Duration(milliseconds: 200),
+                          padding: const EdgeInsets.symmetric(
+                              vertical: 10, horizontal: 6),
                           decoration: BoxDecoration(
-                            color: selected
-                                ? Colors.blue.shade600
-                                : Colors.white,
-                            borderRadius: BorderRadius.circular(14),
+                            color: Colors.white,
+                            borderRadius: BorderRadius.circular(16),
                             border: Border.all(
                               color: selected
                                   ? Colors.blue.shade600
                                   : Colors.blue.shade100,
-                              width: 1.4,
+                              width: selected ? 2.2 : 1.4,
                             ),
+                            boxShadow: selected
+                                ? [
+                                    BoxShadow(
+                                      color: Colors.blue.shade300
+                                          .withOpacity(0.5),
+                                      blurRadius: 10,
+                                      spreadRadius: 1,
+                                    ),
+                                  ]
+                                : null,
                           ),
                           child: Column(
                             mainAxisSize: MainAxisSize.min,
                             children: [
-                              Icon(
-                                info.icon,
-                                size: 26,
-                                color: selected
-                                    ? Colors.white
-                                    : Colors.blue.shade600,
+                              // Same dark backdrop as the game canvas so the
+                              // glass/liquid rendering has the contrast it
+                              // was designed for, not a flat icon substitute.
+                              Container(
+                                padding: const EdgeInsets.symmetric(
+                                    vertical: 8),
+                                decoration: BoxDecoration(
+                                  gradient: const LinearGradient(
+                                    begin: Alignment.topCenter,
+                                    end: Alignment.bottomCenter,
+                                    colors: AppColors.gameBackgroundGradient,
+                                  ),
+                                  borderRadius: BorderRadius.circular(10),
+                                ),
+                                child: Center(
+                                  child: BottleGlassPreview(
+                                    style: s,
+                                    width: 34,
+                                    height: 84,
+                                  ),
+                                ),
                               ),
-                              const SizedBox(height: 6),
+                              const SizedBox(height: 8),
                               Text(
                                 info.label,
                                 textAlign: TextAlign.center,
@@ -197,19 +261,83 @@ class SettingsScreen extends StatelessWidget {
                                   fontSize: 11,
                                   fontWeight: FontWeight.w600,
                                   color: selected
-                                      ? Colors.white
+                                      ? Colors.blue.shade700
                                       : Colors.blueGrey.shade700,
                                 ),
                               ),
+                              if (selected) ...[
+                                const SizedBox(height: 3),
+                                Icon(Icons.check_circle_rounded,
+                                    size: 14, color: Colors.blue.shade600),
+                              ],
                             ],
                           ),
                         ),
                       ),
                     ),
                   );
-                }).toList(),
-              ),
-            ),
+                  }),
+                  if (lockedCount > 0)
+                    Expanded(
+                      child: Padding(
+                        padding: const EdgeInsets.symmetric(horizontal: 4),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => Get.to(
+                            () => const ShopScreen(),
+                            transition: Transition.rightToLeftWithFade,
+                          ),
+                          child: Container(
+                            padding: const EdgeInsets.symmetric(
+                                vertical: 10, horizontal: 6),
+                            decoration: BoxDecoration(
+                              color: Colors.white,
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(
+                                  color: Colors.amber.shade300, width: 1.4),
+                            ),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              children: [
+                                Container(
+                                  padding:
+                                      const EdgeInsets.symmetric(vertical: 8),
+                                  decoration: BoxDecoration(
+                                    gradient: const LinearGradient(
+                                      begin: Alignment.topCenter,
+                                      end: Alignment.bottomCenter,
+                                      colors: AppColors.gameBackgroundGradient,
+                                    ),
+                                    borderRadius: BorderRadius.circular(10),
+                                  ),
+                                  child: SizedBox(
+                                    height: 84,
+                                    child: Center(
+                                      child: Icon(Icons.add_circle_rounded,
+                                          color: Colors.amber.shade300,
+                                          size: 30),
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(height: 8),
+                                Text(
+                                  '$lockedCount more',
+                                  textAlign: TextAlign.center,
+                                  style: TextStyle(
+                                    fontSize: 11,
+                                    fontWeight: FontWeight.w600,
+                                    color: Colors.amber.shade800,
+                                  ),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ),
+                ],
+              );
+            }),
             const SizedBox(height: 28),
             Text('Danger Zone', style: AppTextStyles.heading(fontSize: 18)),
             const SizedBox(height: 8),

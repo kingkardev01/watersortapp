@@ -1,7 +1,11 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:get_storage/get_storage.dart';
 import 'package:watersortapp/home_screen.dart';
+import 'package:watersortapp/story_intro_screen.dart';
 import 'package:watersortapp/theme/app_theme.dart';
+import 'package:watersortapp/widgets/animated_water_background.dart';
+import 'package:watersortapp/widgets/mascot_droplet.dart';
 
 class SplashScreen extends StatefulWidget {
   const SplashScreen({super.key});
@@ -58,8 +62,12 @@ class _SplashScreenState extends State<SplashScreen>
     _controller.forward();
 
     Future.delayed(const Duration(milliseconds: 2000), () {
-      if (mounted) {
+      if (!mounted) return;
+      final bool storySeen = GetStorage().read('storySeen') ?? false;
+      if (storySeen) {
         Get.offAll(() => const HomeScreen(), transition: Transition.fadeIn);
+      } else {
+        Get.offAll(() => const StoryIntroScreen(), transition: Transition.fadeIn);
       }
     });
   }
@@ -73,14 +81,11 @@ class _SplashScreenState extends State<SplashScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      body: Container(
-        decoration: const BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: AppColors.splashGradient,
-          ),
-        ),
+      body: AnimatedWaterBackground(
+        gradientColors: AppColors.splashGradient,
+        bubbleColor: Colors.white,
+        bubbleCount: 22,
+        maxBubbleOpacity: 0.28,
         child: Center(
           child: AnimatedBuilder(
             animation: _controller,
@@ -92,10 +97,9 @@ class _SplashScreenState extends State<SplashScreen>
                     opacity: _logoFade,
                     child: ScaleTransition(
                       scale: _logoScale,
-                      child: const Icon(
-                        Icons.water_drop,
-                        size: 100,
-                        color: Colors.white,
+                      child: const MascotDroplet(
+                        size: 150,
+                        expression: MascotExpression.cheer,
                       ),
                     ),
                   ),

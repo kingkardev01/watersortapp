@@ -8,9 +8,15 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:watersortapp/controllers/coin_controller.dart';
 import 'package:watersortapp/controllers/level_controller.dart';
 import 'package:watersortapp/controllers/settings_controller.dart';
+import 'package:watersortapp/controllers/shop_controller.dart';
+import 'package:watersortapp/data/worlds.dart';
 import 'package:watersortapp/models/bottle_style.dart';
+import 'package:watersortapp/shop_screen.dart';
+import 'package:watersortapp/theme/app_theme.dart';
+import 'package:watersortapp/widgets/animated_water_background.dart';
 
 // ---------------------------------------------------------------------------
 // Sparkle particle for the bottle-sorted celebration
@@ -323,6 +329,17 @@ class BottleComponent extends PositionComponent with TapCallbacks {
   Vector2 get centerPosition => position + size / 2;
   Vector2 get mouthCenter => position + Vector2(width / 2, 0);
 
+  /// World position of the mouth opening accounting for the bottle's
+  /// current tilt. [position] is the anchor (top-left) that stays fixed
+  /// under [RotateEffect] — the mouth itself is offset from that anchor
+  /// by half the bottle width, so it swings out to a different world
+  /// point as the bottle rotates during a pour. Using the untilted
+  /// [mouthCenter] here would place the pour stream's start point back
+  /// near the anchor, mostly hidden inside the tilted glass body instead
+  /// of at the visible spout.
+  Vector2 get tiltedMouthWorld =>
+      position + Vector2(width / 2 * cos(angle), width / 2 * sin(angle));
+
   /// Local-space Y of the current liquid surface, used so splash effects
   /// land exactly on top of the liquid rather than always at the mouth.
   double get liquidSurfaceLocalY {
@@ -540,15 +557,20 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     final double bodyBottom = height;
     final double bodyWidth = bodyRight - bodyLeft;
     final double bottomCurveHeight = styleInfo.bottomCurveHeight;
+    final double centerX = width / 2;
+    final double halfWidth = bodyWidth / 2;
+    final double neckWidthRatio = styleInfo.neckWidthRatio;
+    final double bellyBulgeRatio = styleInfo.bellyBulgeRatio;
 
-    final tubeFillPath = Path()
-      ..moveTo(bodyLeft, bodyTop)
-      ..lineTo(bodyLeft, bodyBottom - bottomCurveHeight)
-      ..quadraticBezierTo(bodyLeft, bodyBottom, width / 2, bodyBottom)
-      ..quadraticBezierTo(
-          bodyRight, bodyBottom, bodyRight, bodyBottom - bottomCurveHeight)
-      ..lineTo(bodyRight, bodyTop)
-      ..close();
+    final tubeFillPath = buildVesselPath(
+      centerX: centerX,
+      halfWidth: halfWidth,
+      top: bodyTop,
+      bottom: bodyBottom,
+      bottomCurveHeight: bottomCurveHeight,
+      neckWidthRatio: neckWidthRatio,
+      bellyBulgeRatio: bellyBulgeRatio,
+    );
 
     final double innerLeft = 7;
     final double innerTop = 15;
@@ -558,14 +580,15 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     final double innerWidth = innerRight - innerLeft;
     final double innerHeight = innerBottom - innerTop;
 
-    final innerLiquidPath = Path()
-      ..moveTo(innerLeft, innerTop)
-      ..lineTo(innerLeft, innerBottom - innerBottomCurveHeight)
-      ..quadraticBezierTo(innerLeft, innerBottom, width / 2, innerBottom)
-      ..quadraticBezierTo(
-          innerRight, innerBottom, innerRight, innerBottom - innerBottomCurveHeight)
-      ..lineTo(innerRight, innerTop)
-      ..close();
+    final innerLiquidPath = buildVesselPath(
+      centerX: centerX,
+      halfWidth: innerWidth / 2,
+      top: innerTop,
+      bottom: innerBottom,
+      bottomCurveHeight: innerBottomCurveHeight,
+      neckWidthRatio: neckWidthRatio,
+      bellyBulgeRatio: bellyBulgeRatio,
+    );
 
     canvas.drawPath(tubeFillPath, glassFillPaint);
 
@@ -596,14 +619,17 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       ..style = PaintingStyle.stroke
       ..strokeWidth = 1.0;
     canvas.drawPath(
-      Path()
-        ..moveTo(bodyLeft + 3.5, bodyTop + 3)
-        ..lineTo(bodyLeft + 3.5, bodyBottom - bottomCurveHeight)
-        ..quadraticBezierTo(
-            bodyLeft + 3.5, bodyBottom - 3, width / 2, bodyBottom - 3)
-        ..quadraticBezierTo(bodyRight - 3.5, bodyBottom - 3, bodyRight - 3.5,
-            bodyBottom - bottomCurveHeight)
-        ..lineTo(bodyRight - 3.5, bodyTop + 3),
+      buildVesselPath(
+        centerX: centerX,
+        halfWidth: halfWidth - 3.5,
+        top: bodyTop,
+        bottom: bodyBottom - 3,
+        bottomCurveHeight: bottomCurveHeight,
+        neckWidthRatio: neckWidthRatio,
+        bellyBulgeRatio: bellyBulgeRatio,
+        topInset: 3,
+        closeTop: false,
+      ),
       wallContourPaint,
     );
 
@@ -745,6 +771,10 @@ class BottleComponent extends PositionComponent with TapCallbacks {
 
     canvas.restore();
 
+    // Clipped to the vessel silhouette so these decorative bars stay
+    // inside the glass even on narrow-necked styles like the round flask.
+    canvas.save();
+    canvas.clipPath(tubeFillPath);
     canvas.drawRRect(
       RRect.fromRectAndRadius(
         Rect.fromLTWH(11, 27, 4, height - 52),
@@ -760,6 +790,7 @@ class BottleComponent extends PositionComponent with TapCallbacks {
       ),
       sideShadowPaint,
     );
+    canvas.restore();
 
     // Glass specular streaks — soft angled light reflections over the
     // whole tube (glass in front of the liquid), so it reads as glass
@@ -799,20 +830,26 @@ class BottleComponent extends PositionComponent with TapCallbacks {
 
     canvas.restore();
 
-    final borderPath = Path()
-      ..moveTo(bodyLeft, bodyTop + 3)
-      ..lineTo(bodyLeft, bodyBottom - bottomCurveHeight)
-      ..quadraticBezierTo(bodyLeft, bodyBottom, width / 2, bodyBottom)
-      ..quadraticBezierTo(
-          bodyRight, bodyBottom, bodyRight, bodyBottom - bottomCurveHeight)
-      ..lineTo(bodyRight, bodyTop + 3);
+    final borderPath = buildVesselPath(
+      centerX: centerX,
+      halfWidth: halfWidth,
+      top: bodyTop,
+      bottom: bodyBottom,
+      bottomCurveHeight: bottomCurveHeight,
+      neckWidthRatio: neckWidthRatio,
+      bellyBulgeRatio: bellyBulgeRatio,
+      topInset: 3,
+      closeTop: false,
+    );
 
     canvas.drawPath(borderPath, glassBorderPaint);
 
+    final double neckHalfWidth = halfWidth * neckWidthRatio;
+    final double mouthWidth = neckHalfWidth * 2;
     final mouthOuterRect =
-        Rect.fromLTWH(bodyLeft, bodyTop - 6, bodyWidth, 13);
-    final mouthInnerRect =
-        Rect.fromLTWH(bodyLeft + 5, bodyTop - 3, bodyWidth - 10, 7);
+        Rect.fromLTWH(centerX - neckHalfWidth, bodyTop - 6, mouthWidth, 13);
+    final mouthInnerRect = Rect.fromLTWH(
+        centerX - neckHalfWidth + 5, bodyTop - 3, mouthWidth - 10, 7);
 
     final mouthInnerPaint = Paint()
       ..color = Colors.black.withOpacity(0.30)
@@ -855,7 +892,8 @@ class BottleComponent extends PositionComponent with TapCallbacks {
     canvas.drawOval(mouthInnerRect.deflate(1.6), mouthInnerRimPaint);
 
     canvas.drawArc(
-      Rect.fromLTWH(bodyLeft + 4, bodyTop - 5, bodyWidth - 8, 11),
+      Rect.fromLTWH(
+          centerX - neckHalfWidth + 4, bodyTop - 5, mouthWidth - 8, 11),
       pi * 1.03,
       pi * 0.42,
       false,
@@ -1077,6 +1115,11 @@ class WaterSortGame extends FlameGame {
 
   final AudioPlayer _audioPlayer = AudioPlayer();
 
+  // Transparent so the AnimatedWaterBackground behind the GameWidget shows
+  // through instead of Flame's default opaque black canvas.
+  @override
+  Color backgroundColor() => const Color(0x00000000);
+
   WaterSortGame({
     required this.level,
     required this.onMoveUpdate,
@@ -1112,36 +1155,56 @@ class WaterSortGame extends FlameGame {
     if (Get.find<SettingsController>().hapticsEnabled.value) trigger();
   }
 
-  /// Number of liquid colors for a given level — difficulty ramps up as
-  /// the player progresses through the 100 levels.
+  /// Shared color palette — also used by the home screen to render the
+  /// per-level difficulty dots, so keep this the single source of truth.
+  static const List<MaterialColor> palette = [
+    Colors.red,
+    Colors.blue,
+    Colors.green,
+    Colors.yellow,
+    Colors.orange,
+    Colors.purple,
+    Colors.teal,
+    Colors.pink,
+  ];
+
+  /// Number of liquid colors for a given level — ramps up every 20 levels
+  /// (two "worlds" worth) so the curve lines up with the world groupings
+  /// on the home screen: 4 colors through level 20, up to 8 by level 81+.
   static int numColorsForLevel(int level) {
-    if (level <= 10) return 4;
-    if (level <= 25) return 5;
-    if (level <= 50) return 6;
-    if (level <= 75) return 7;
-    return 8;
+    final int tier = ((level - 1) ~/ 20).clamp(0, 4);
+    return 4 + tier;
   }
 
-  /// Empty bottles available to sort into — kept constant so higher
-  /// levels stay solvable-in-practice while still getting harder via
-  /// more colors packed into the same amount of breathing room.
-  static const int _emptyBottles = 2;
+  /// Empty bottles available to sort into. Instead of staying fixed for
+  /// all 100 levels, it steps down from 3 to 1 across each 20-level color
+  /// tier so difficulty still climbs between the coarser color-count
+  /// jumps, not just at the tier boundaries.
+  static int numEmptyBottlesForLevel(int level) {
+    final int withinTier = (level - 1) % 20;
+    if (withinTier < 7) return 3;
+    if (withinTier < 14) return 2;
+    return 1;
+  }
+
+  /// Star rating for a completed level. Thresholds scale with how many
+  /// colors that level uses — a fixed 15-move bar for 3 stars was unfair
+  /// once levels ramped up to 7-8 colors, which inherently need more moves.
+  static int starRating(int level, int moves) {
+    if (moves <= 0) return 0;
+    final int numColors = numColorsForLevel(level);
+    final int threshold3 = 15 + (numColors - 4) * 4;
+    final int threshold2 = 25 + (numColors - 4) * 6;
+    if (moves <= threshold3) return 3;
+    if (moves <= threshold2) return 2;
+    return 1;
+  }
 
   void _initializeGameData() {
-    final List<Color> palette = [
-      Colors.red.shade600,
-      Colors.blue.shade600,
-      Colors.green.shade600,
-      Colors.yellow.shade600,
-      Colors.orange.shade600,
-      Colors.purple.shade600,
-      Colors.teal.shade600,
-      Colors.pink.shade400,
-    ];
-
     final int numColors = numColorsForLevel(level);
-    final List<Color> gameColors = palette.sublist(0, numColors);
-    final int totalBottles = numColors + _emptyBottles;
+    final List<Color> gameColors =
+        palette.sublist(0, numColors).map((c) => c.shade600).toList();
+    final int totalBottles = numColors + numEmptyBottlesForLevel(level);
 
     final List<Color> allColors = [];
     for (final color in gameColors) {
@@ -1520,8 +1583,7 @@ class WaterSortGame extends FlameGame {
                       fromBottle.isPouringWave = true;
                       toBottle.isPouringWave = true;
 
-                      final streamStart =
-                          fromBottle.position + Vector2(3, 4);
+                      final streamStart = fromBottle.tiltedMouthWorld;
                       final streamTarget =
                           toBottle.mouthCenter + Vector2(0, 7);
 
@@ -1678,6 +1740,7 @@ class _GameScreenState extends State<GameScreen>
   bool _isPaused = false;
 
   late ConfettiController _confettiController;
+  int _coinsEarned = 0;
 
   @override
   void initState() {
@@ -1706,6 +1769,58 @@ class _GameScreenState extends State<GameScreen>
       },
       onWin: _handleWin,
       onNoMoves: _handleNoMoves,
+      onHintUsed: () => Get.find<ShopController>().useHint(),
+    );
+  }
+
+  void _useHint() {
+    final shop = Get.find<ShopController>();
+    if (shop.hintTokens.value <= 0) {
+      _showOutOfTokensDialog('hints');
+      return;
+    }
+    _game.showHint();
+  }
+
+  void _useUndo() {
+    if (!_game.canUndo) return;
+    final shop = Get.find<ShopController>();
+    if (!shop.canUndo) {
+      _showOutOfTokensDialog('undos');
+      return;
+    }
+    shop.useUndo();
+    _game.undo();
+  }
+
+  void _showOutOfTokensDialog(String tokenName) {
+    showDialog(
+      context: context,
+      builder: (context) => AlertDialog(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+        title: Text('Out of $tokenName'),
+        content: Text('Visit the Shop to get more $tokenName using coins.'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(context).pop(),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () {
+              Navigator.of(context).pop();
+              Get.to(
+                () => const ShopScreen(),
+                transition: Transition.rightToLeftWithFade,
+              );
+            },
+            style: ElevatedButton.styleFrom(
+              backgroundColor: Colors.blue.shade600,
+              foregroundColor: Colors.white,
+            ),
+            child: const Text('Go to Shop'),
+          ),
+        ],
+      ),
     );
   }
 
@@ -1724,13 +1839,6 @@ class _GameScreenState extends State<GameScreen>
     return '$m:$s';
   }
 
-  /// Star rating: 3 stars ≤ 15 moves, 2 stars ≤ 25, 1 star otherwise
-  int _starRating(int moves) {
-    if (moves <= 15) return 3;
-    if (moves <= 25) return 2;
-    return 1;
-  }
-
   void _handleWin() {
     _stopwatch.stop();
     _timerTick.stop();
@@ -1739,6 +1847,10 @@ class _GameScreenState extends State<GameScreen>
     // Save best score
     final levelController = Get.find<LevelController>();
     levelController.saveBestScore(widget.level, _moveCount);
+
+    final stars = WaterSortGame.starRating(widget.level, _moveCount);
+    _coinsEarned = CoinController.rewardForStars(stars);
+    Get.find<CoinController>().addCoins(_coinsEarned);
 
     _showSuccessDialog();
   }
@@ -1835,9 +1947,11 @@ class _GameScreenState extends State<GameScreen>
   }
 
   void _showSuccessDialog() {
-    final stars = _starRating(_moveCount);
+    final stars = WaterSortGame.starRating(widget.level, _moveCount);
     final levelController = Get.find<LevelController>();
     final best = levelController.getBestScore(widget.level);
+    final world = gameWorlds.firstWhere((w) => w.containsLevel(widget.level));
+    final bool isWorldComplete = widget.level == world.endLevel;
 
     showDialog(
       context: context,
@@ -1854,11 +1968,13 @@ class _GameScreenState extends State<GameScreen>
               _AnimatedStars(stars: stars),
               const SizedBox(height: 10),
               Text(
-                stars == 3
-                    ? '🎉 Perfect!'
-                    : stars == 2
-                        ? '👏 Well Done!'
-                        : '✅ Level Clear!',
+                isWorldComplete
+                    ? '🏆 World Complete!'
+                    : stars == 3
+                        ? '🎉 Perfect!'
+                        : stars == 2
+                            ? '👏 Well Done!'
+                            : '✅ Level Clear!',
                 style: TextStyle(
                   fontSize: 24,
                   fontWeight: FontWeight.bold,
@@ -1877,6 +1993,26 @@ class _GameScreenState extends State<GameScreen>
                   color: Colors.blue[700],
                 ),
               ),
+              if (isWorldComplete) ...[
+                const SizedBox(height: 8),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                  decoration: BoxDecoration(
+                    color: Colors.amber.shade100,
+                    borderRadius: BorderRadius.circular(12),
+                    border: Border.all(color: Colors.amber.shade400),
+                  ),
+                  child: Text(
+                    'You cleared "${world.name}"!',
+                    style: TextStyle(
+                      fontSize: 13,
+                      fontWeight: FontWeight.bold,
+                      color: Colors.amber.shade800,
+                    ),
+                  ),
+                ),
+              ],
               const SizedBox(height: 14),
               _StatRow(
                 icon: Icons.swap_horiz_rounded,
@@ -1900,6 +2036,8 @@ class _GameScreenState extends State<GameScreen>
                   color: Colors.amber.shade700,
                 ),
               ],
+              const SizedBox(height: 12),
+              _CoinReward(amount: _coinsEarned),
             ],
           ),
           actions: [
@@ -1958,7 +2096,7 @@ class _GameScreenState extends State<GameScreen>
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: AppColors.gameBackground,
       appBar: AppBar(
         // Default back button stays (automaticallyImplyLeading: true by default)
         title: Text(
@@ -2022,7 +2160,7 @@ class _GameScreenState extends State<GameScreen>
           children: [
             Column(
               children: [
-                // Stats bar: Moves (left) | Stars (center) | Undo (right)
+                // Stats bar: Moves (left) | Stars (center) | Hint + Undo (right)
                 Container(
                   color: Colors.blue.shade800,
                   padding: const EdgeInsets.symmetric(
@@ -2039,7 +2177,8 @@ class _GameScreenState extends State<GameScreen>
                       // Star rating — center
                       Row(
                         children: List.generate(3, (i) {
-                          final filled = i < _starRating(_moveCount);
+                          final filled =
+                              i < WaterSortGame.starRating(widget.level, _moveCount);
                           return Icon(
                             filled ? Icons.star : Icons.star_border,
                             color: filled
@@ -2049,41 +2188,44 @@ class _GameScreenState extends State<GameScreen>
                           );
                         }),
                       ),
-                      // Undo button — right
-                      GestureDetector(
-                        onTap: () => _game.undo(),
-                        child: Container(
-                          padding: const EdgeInsets.symmetric(
-                              horizontal: 12, vertical: 4),
-                          decoration: BoxDecoration(
-                            color: Colors.blue.shade300.withOpacity(0.2),
-                            borderRadius: BorderRadius.circular(10),
-                            border: Border.all(
-                                color: Colors.blue.shade200, width: 1.2),
+                      // Hint + Undo — right
+                      Row(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Obx(
+                            () => _TokenActionChip(
+                              icon: Icons.lightbulb_rounded,
+                              label: 'Hint',
+                              count: Get.find<ShopController>()
+                                  .hintTokens
+                                  .value,
+                              onTap: _useHint,
+                            ),
                           ),
-                          child: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Icon(Icons.undo_rounded,
-                                  color: Colors.blue.shade100, size: 18),
-                              const SizedBox(width: 4),
-                              Text(
-                                'Undo',
-                                style: TextStyle(
-                                  color: Colors.blue.shade100,
-                                  fontSize: 13,
-                                  fontWeight: FontWeight.bold,
-                                ),
-                              ),
-                            ],
+                          const SizedBox(width: 8),
+                          Obx(
+                            () => _TokenActionChip(
+                              icon: Icons.undo_rounded,
+                              label: 'Undo',
+                              count: Get.find<ShopController>()
+                                  .undoTokens
+                                  .value,
+                              onTap: _useUndo,
+                            ),
                           ),
-                        ),
+                        ],
                       ),
                     ],
                   ),
                 ),
                 Expanded(
-                  child: GameWidget(game: _game),
+                  child: AnimatedWaterBackground(
+                    gradientColors: AppColors.gameBackgroundGradient,
+                    bubbleColor: Colors.lightBlueAccent,
+                    bubbleCount: 12,
+                    maxBubbleOpacity: 0.12,
+                    child: GameWidget(game: _game),
+                  ),
                 ),
                 Center(
                   child: Padding(
@@ -2180,6 +2322,76 @@ class _GameScreenState extends State<GameScreen>
 // Helper widgets
 // ---------------------------------------------------------------------------
 
+/// Hint/Undo button in the in-game stats bar, showing the remaining token
+/// count as a small badge. Tapping when [count] is 0 still fires [onTap] —
+/// the handler is responsible for nudging the player to the Shop instead
+/// of performing the action.
+class _TokenActionChip extends StatelessWidget {
+  final IconData icon;
+  final String label;
+  final int count;
+  final VoidCallback onTap;
+
+  const _TokenActionChip({
+    required this.icon,
+    required this.label,
+    required this.count,
+    required this.onTap,
+  });
+
+  @override
+  Widget build(BuildContext context) {
+    final bool depleted = count <= 0;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+        decoration: BoxDecoration(
+          color: Colors.blue.shade300.withOpacity(depleted ? 0.08 : 0.2),
+          borderRadius: BorderRadius.circular(10),
+          border: Border.all(
+            color: Colors.blue.shade200.withOpacity(depleted ? 0.5 : 1.0),
+            width: 1.2,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(icon,
+                color: Colors.blue.shade100.withOpacity(depleted ? 0.6 : 1.0),
+                size: 18),
+            const SizedBox(width: 4),
+            Text(
+              label,
+              style: TextStyle(
+                color: Colors.blue.shade100.withOpacity(depleted ? 0.6 : 1.0),
+                fontSize: 13,
+                fontWeight: FontWeight.bold,
+              ),
+            ),
+            const SizedBox(width: 4),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: 5, vertical: 1),
+              decoration: BoxDecoration(
+                color: depleted ? Colors.red.shade300 : Colors.amber.shade400,
+                borderRadius: BorderRadius.circular(8),
+              ),
+              child: Text(
+                '$count',
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 11,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 class _InfoChip extends StatelessWidget {
   final IconData icon;
   final String label;
@@ -2207,6 +2419,72 @@ class _InfoChip extends StatelessWidget {
           ),
         ),
       ],
+    );
+  }
+}
+
+/// Pill showing coins earned for the level, with a small pop-in so it reads
+/// as a reward rather than just another stat line.
+class _CoinReward extends StatefulWidget {
+  final int amount;
+  const _CoinReward({required this.amount});
+
+  @override
+  State<_CoinReward> createState() => _CoinRewardState();
+}
+
+class _CoinRewardState extends State<_CoinReward>
+    with SingleTickerProviderStateMixin {
+  late final AnimationController _controller;
+  late final Animation<double> _scale;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 500),
+    );
+    _scale = CurvedAnimation(parent: _controller, curve: Curves.elasticOut);
+    Future.delayed(const Duration(milliseconds: 500), () {
+      if (mounted) _controller.forward();
+    });
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return ScaleTransition(
+      scale: _scale,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: Colors.amber.shade50,
+          borderRadius: BorderRadius.circular(20),
+          border: Border.all(color: Colors.amber.shade300),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.monetization_on_rounded,
+                color: Colors.amber.shade700, size: 20),
+            const SizedBox(width: 6),
+            Text(
+              '+${widget.amount} Coins',
+              style: TextStyle(
+                color: Colors.amber.shade800,
+                fontWeight: FontWeight.bold,
+                fontSize: 14,
+              ),
+            ),
+          ],
+        ),
+      ),
     );
   }
 }
