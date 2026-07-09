@@ -8,6 +8,7 @@ import 'package:flame/game.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:watersortapp/controllers/achievement_controller.dart';
 import 'package:watersortapp/controllers/coin_controller.dart';
 import 'package:watersortapp/controllers/level_controller.dart';
 import 'package:watersortapp/controllers/settings_controller.dart';
@@ -1851,6 +1852,7 @@ class _GameScreenState extends State<GameScreen>
     final stars = WaterSortGame.starRating(widget.level, _moveCount);
     _coinsEarned = CoinController.rewardForStars(stars);
     Get.find<CoinController>().addCoins(_coinsEarned);
+    Get.find<AchievementController>().checkAll();
 
     _showSuccessDialog();
   }

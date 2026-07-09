@@ -8,6 +8,10 @@ class CoinController extends GetxController {
   final box = GetStorage();
   final RxInt coins = 0.obs;
 
+  /// Lifetime coins earned, independent of [coins] (which drops on spend).
+  /// Exists purely for "earn N coins total" achievements.
+  final RxInt totalEarned = 0.obs;
+
   /// Coins awarded for a level clear, scaled by star rating so cleaner
   /// solves are worth more.
   static int rewardForStars(int stars) => 10 + stars * 10;
@@ -16,12 +20,15 @@ class CoinController extends GetxController {
   void onInit() {
     super.onInit();
     coins.value = box.read('coins') ?? 0;
+    totalEarned.value = box.read('totalCoinsEarned') ?? 0;
   }
 
   void addCoins(int amount) {
     if (amount <= 0) return;
     coins.value += amount;
+    totalEarned.value += amount;
     box.write('coins', coins.value);
+    box.write('totalCoinsEarned', totalEarned.value);
   }
 
   /// Deducts [amount] coins if the balance covers it. Returns whether the

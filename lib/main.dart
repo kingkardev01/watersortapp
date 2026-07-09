@@ -1,7 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:get_storage/get_storage.dart';
+import 'package:watersortapp/controllers/achievement_controller.dart';
 import 'package:watersortapp/controllers/coin_controller.dart';
+import 'package:watersortapp/controllers/daily_reward_controller.dart';
 import 'package:watersortapp/controllers/profile_controller.dart';
 import 'package:watersortapp/controllers/settings_controller.dart';
 import 'package:watersortapp/controllers/shop_controller.dart';
@@ -15,6 +17,8 @@ void main() async {
   Get.put(ProfileController());
   Get.put(CoinController());
   Get.put(ShopController());
+  Get.put(DailyRewardController());
+  Get.put(AchievementController());
   runApp(const WaterSortApp());
 }
 

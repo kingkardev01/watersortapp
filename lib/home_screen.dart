@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:watersortapp/achievements_screen.dart';
+import 'package:watersortapp/controllers/daily_reward_controller.dart';
 import 'package:watersortapp/controllers/level_controller.dart';
 import 'package:watersortapp/data/worlds.dart';
 import 'package:watersortapp/game_screen.dart';
@@ -9,11 +11,28 @@ import 'package:watersortapp/shop_screen.dart';
 import 'package:watersortapp/theme/app_theme.dart';
 import 'package:watersortapp/widgets/animated_water_background.dart';
 import 'package:watersortapp/widgets/coin_balance_chip.dart';
+import 'package:watersortapp/widgets/daily_reward_dialog.dart';
 import 'package:watersortapp/widgets/staggered_fade_in.dart';
 import 'package:watersortapp/widgets/tap_scale.dart';
 
-class HomeScreen extends StatelessWidget {
+class HomeScreen extends StatefulWidget {
   const HomeScreen({super.key});
+
+  @override
+  State<HomeScreen> createState() => _HomeScreenState();
+}
+
+class _HomeScreenState extends State<HomeScreen> {
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      if (Get.find<DailyRewardController>().canClaim) {
+        showDailyRewardDialog(context);
+      }
+    });
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -33,6 +52,15 @@ class HomeScreen extends StatelessWidget {
         elevation: 0,
         actions: [
           const CoinBalanceChip(),
+          _DailyRewardButton(),
+          IconButton(
+            icon: const Icon(Icons.emoji_events_rounded),
+            tooltip: 'Achievements',
+            onPressed: () => Get.to(
+              () => const AchievementsScreen(),
+              transition: Transition.rightToLeftWithFade,
+            ),
+          ),
           IconButton(
             icon: const Icon(Icons.storefront_rounded),
             tooltip: 'Shop',
@@ -104,6 +132,41 @@ class HomeScreen extends StatelessWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Gift icon shown in the home app bar for the daily login streak — badged
+/// with a dot whenever today's reward hasn't been claimed yet.
+class _DailyRewardButton extends StatelessWidget {
+  @override
+  Widget build(BuildContext context) {
+    final controller = Get.find<DailyRewardController>();
+    return Obx(
+      () => Stack(
+        clipBehavior: Clip.none,
+        children: [
+          IconButton(
+            icon: const Icon(Icons.card_giftcard_rounded),
+            tooltip: 'Daily Reward',
+            onPressed: () => showDailyRewardDialog(context),
+          ),
+          if (controller.canClaim)
+            Positioned(
+              right: 6,
+              top: 6,
+              child: Container(
+                width: 9,
+                height: 9,
+                decoration: BoxDecoration(
+                  color: Colors.redAccent,
+                  shape: BoxShape.circle,
+                  border: Border.all(color: Colors.blue.shade600, width: 1.5),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

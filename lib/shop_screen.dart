@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:watersortapp/controllers/achievement_controller.dart';
 import 'package:watersortapp/controllers/coin_controller.dart';
 import 'package:watersortapp/controllers/settings_controller.dart';
 import 'package:watersortapp/controllers/shop_controller.dart';
@@ -150,6 +151,7 @@ class ShopScreen extends StatelessWidget {
               Navigator.of(context).pop();
               if (shop.unlockStyle(style)) {
                 Get.find<SettingsController>().setBottleStyle(style);
+                Get.find<AchievementController>().checkAll();
                 ScaffoldMessenger.of(context).showSnackBar(
                   SnackBar(content: Text('${info.label} unlocked!')),
                 );
